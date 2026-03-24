@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useCameraPermissions } from 'expo-camera'; // Still needed to ask for OS permission!
 import { WebView } from 'react-native-webview';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -28,16 +28,12 @@ export default function CombatScreen() {
 
   const [countdown, setCountdown] = useState(3);
   const [isActive, setIsActive] = useState(false);
-  const [isCameraReady, setIsCameraReady] = useState(false); 
-  const [camLog, setCamLog] = useState("Camera: Waiting"); 
 
   const attackFlashAnim = useRef(new Animated.Value(0)).current;
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevRepsRef = useRef(0);
 
-  const cameraRef = useRef<CameraView>(null);
   const webViewRef = useRef<WebView>(null);
-  const isProcessingRef = useRef(false);
 
   const exercise = battle?.enemy.exercise ?? 'push_up';
   const exerciseDef = EXERCISES[exercise];
@@ -46,50 +42,6 @@ export default function CombatScreen() {
     landmarks, primaryAngle, repCount, formScore,
     isBodyVisible, resetReps, processPoseData, debugMsg,
   } = usePoseEngine(exercise, isActive);
-
-  // ── Camera Loop ──
-  useEffect(() => {
-    if (!isActive || !isCameraReady) return;
-    
-    let isMounted = true;
-
-    const captureLoop = async () => {
-      if (!isMounted) return;
-
-      if (cameraRef.current && webViewRef.current && !isProcessingRef.current) {
-        isProcessingRef.current = true;
-        try {
-          const pic = await cameraRef.current.takePictureAsync({
-            base64: true,
-            quality: 0.25,
-          });
-          
-          if (pic && pic.base64 && isMounted) {
-            const cleanBase64 = pic.base64.replace(/(\r\n|\n|\r)/gm, "");
-            setCamLog(`Cam: Sent ${Math.round(cleanBase64.length / 1024)}KB`);
-            
-            webViewRef.current.injectJavaScript(`
-              if (window.processFrame) {
-                window.processFrame('${cleanBase64}');
-              }
-              true;
-            `);
-          }
-        } catch (e: any) {
-          setCamLog(`Cam Err: ${e.message || 'Unknown Crash'}`);
-        } finally {
-          isProcessingRef.current = false;
-        }
-      }
-
-      if (isMounted) {
-        setTimeout(captureLoop, 200); 
-      }
-    };
-
-    captureLoop();
-    return () => { isMounted = false; };
-  }, [isActive, isCameraReady]);
 
   // ── Countdown ──
   useEffect(() => {
@@ -161,43 +113,37 @@ export default function CombatScreen() {
   return (
     <View style={styles.screen}>
       
-      {/* ── 1. The Real Camera Background ── */}
-      <CameraView
-        ref={cameraRef}
-        style={StyleSheet.absoluteFill}
-        facing="front"
-        ratio="16:9"
-        onCameraReady={() => setIsCameraReady(true)}
-      />
-
-      {/* ── 2. X-RAY MODE (The MediaPipe Debugger Box) ── */}
-      {/* We made this fully visible and placed it in the top right corner */}
-      <View style={styles.xrayBox} pointerEvents="none">
+      {/* ── WebRTC Camera Background ── */}
+      {/* The WebView itself is now displaying the camera feed perfectly in the background */}
+      <View style={StyleSheet.absoluteFill}>
         <WebView
           ref={webViewRef}
-          source={{ html: MEDIAPIPE_WEBVIEW_HTML }}
+          source={{ html: MEDIAPIPE_WEBVIEW_HTML, baseUrl: 'https://localhost' }}
           originWhitelist={['*']}
           javaScriptEnabled={true}
           domStorageEnabled={true}
           mixedContentMode="always"
+          allowsInlineMediaPlayback={true}       // <-- CRITICAL: Allows video to play without full-screening
+          mediaPlaybackRequiresUserAction={false} // <-- CRITICAL: Allows camera auto-play
           allowFileAccess={true}
           allowUniversalAccessFromFileURLs={true}
-          style={{ backgroundColor: 'transparent' }}
+          style={{ flex: 1, backgroundColor: '#000' }}
           onError={(e) => processPoseData(JSON.stringify({ log: `WV Error: ${e.nativeEvent.description}` }))}
           onHttpError={(e) => processPoseData(JSON.stringify({ log: `HTTP Error: ${e.nativeEvent.statusCode}` }))}
           onMessage={(event) => processPoseData(event.nativeEvent.data)}
         />
-        <Text style={styles.xrayLabel}>AI X-RAY</Text>
       </View>
 
       {/* ── ON-SCREEN DEBUG MONITOR ── */}
       <View style={styles.debugMonitor}>
         <Text style={styles.debugText}>MP Bridge: {debugMsg}</Text>
-        <Text style={[styles.debugText, { marginTop: 4, color: Colors.gold }]}>{camLog}</Text>
       </View>
 
       <View style={styles.scanlineOverlay} pointerEvents="none" />
+      
+      {/* ── Pose Wireframe Overlay ── */}
       <PoseWireframe landmarks={landmarks} formScore={formScore} width={W} height={H} />
+      
       <Animated.View style={[StyleSheet.absoluteFill, styles.attackFlash, { opacity: flashOpacity }]} pointerEvents="none" />
 
       <LinearGradient colors={['rgba(6,6,15,0.92)', 'rgba(6,6,15,0.5)', 'transparent']} style={styles.topHud} pointerEvents="none">
@@ -284,30 +230,4 @@ const styles = StyleSheet.create({
   permBtnText: { fontFamily: Fonts.display, fontSize: 14, color: Colors.bgVoid, letterSpacing: 1 },
   debugMonitor: { position: 'absolute', top: 120, left: 20, zIndex: 100, backgroundColor: 'rgba(0,0,0,0.6)', padding: 6, borderRadius: 6, borderWidth: 1, borderColor: Colors.teal },
   debugText: { color: Colors.teal, fontFamily: Fonts.mono, fontSize: 10, letterSpacing: 1 },
-  
-  // NEW X-RAY STYLES
-  xrayBox: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    width: 100,
-    height: 140,
-    zIndex: 999,
-    borderWidth: 2,
-    borderColor: Colors.teal,
-    borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: '#111'
-  },
-  xrayLabel: {
-    position: 'absolute',
-    bottom: 4,
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    color: Colors.teal,
-    fontFamily: Fonts.mono,
-    fontSize: 8,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  }
 });

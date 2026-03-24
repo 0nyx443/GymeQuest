@@ -123,7 +123,7 @@ export function usePoseEngine(exercise: ExerciseType, active: boolean): PoseEngi
         setRepCount(repCountRef.current);
       }
     } catch (e) {
-      // Ignore rapid JSON frame errors
+      // Ignore frame errors
     }
   }, [active, exercise, downThresh, upThresh, triplets]);
 
@@ -139,14 +139,21 @@ export const MEDIAPIPE_WEBVIEW_HTML = `
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <style>
-    /* Centers the canvas in our new X-Ray box so it looks clean */
-    body { margin: 0; background-color: #111; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-    canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
+    body { margin: 0; background-color: #000; overflow: hidden; }
+    /* The video acts as our new full-screen camera background */
+    video {
+      position: absolute;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      transform: scaleX(-1); /* Mirrors the front camera naturally */
+    }
   </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+<video id="video" playsinline autoplay></video>
 <script>
   function sendToRN(msg) {
     if (window.ReactNativeWebView) {
@@ -161,13 +168,14 @@ export const MEDIAPIPE_WEBVIEW_HTML = `
   let bootInterval = setInterval(() => {
     if (window.ReactNativeWebView) {
       clearInterval(bootInterval);
-      sendToRN("Bridge Connected! Loading Model...");
+      sendToRN("Bridge Connected! Loading 30FPS Engine...");
       initPose();
     }
   }, 50);
 
   function initPose() {
     try {
+      const videoElement = document.getElementById('video');
       const pose = new Pose({
         locateFile: (f) => 'https://cdn.jsdelivr.net/npm/@mediapipe/pose/' + f
       });
@@ -180,8 +188,6 @@ export const MEDIAPIPE_WEBVIEW_HTML = `
         minTrackingConfidence: 0.5,
       });
 
-      let isReady = false;
-
       pose.onResults((results) => {
         if (results.poseLandmarks) {
           window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -193,37 +199,28 @@ export const MEDIAPIPE_WEBVIEW_HTML = `
       });
 
       pose.initialize().then(() => {
-        isReady = true;
-        sendToRN("READY AND TRACKING!");
+        sendToRN("Model Loaded! Booting WebRTC Camera...");
+        
+        // Let MediaPipe handle the camera natively! No more React Native base64 strings!
+        const camera = new Camera(videoElement, {
+          onFrame: async () => {
+            await pose.send({ image: videoElement });
+          },
+          width: 480,
+          height: 640,
+          facingMode: "user"
+        });
+        
+        camera.start().then(() => {
+          sendToRN("LIVE TRACKING AT 30FPS!");
+        }).catch(err => {
+          sendToRN("Cam Start Err: " + err.message);
+        });
+
       }).catch(err => {
         sendToRN("Init Err: " + err.message);
       });
 
-      window.processFrame = async (base64Jpeg) => {
-        if (!isReady) return;
-        const img = new Image();
-        
-        img.onload = async () => {
-          const c = document.getElementById('c');
-          const ctx = c.getContext('2d');
-          
-          c.width = img.width;
-          c.height = img.height;
-          ctx.drawImage(img, 0, 0, c.width, c.height);
-
-          try {
-            await pose.send({ image: c });
-          } catch(e) {
-            sendToRN("Pose Send Err: " + e.message);
-          }
-        };
-
-        img.onerror = () => {
-          sendToRN("IMG LOAD ERR: Base64 broken");
-        };
-
-        img.src = 'data:image/jpeg;base64,' + base64Jpeg;
-      };
     } catch(e) {
        sendToRN("JS Try/Catch: " + e.message);
     }

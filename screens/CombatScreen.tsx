@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions } from 'react-native';
-import { useCameraPermissions } from 'expo-camera'; // Still needed to ask for OS permission!
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { useCameraPermissions } from 'expo-camera'; 
 import { WebView } from 'react-native-webview';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -8,14 +8,11 @@ import * as Haptics from 'expo-haptics';
 
 import { useGameStore } from '@/store/gameStore';
 import { usePoseEngine, MEDIAPIPE_WEBVIEW_HTML } from '@/hooks/usePoseEngine';
-import { PoseWireframe } from '@/components/combat/PoseWireframe';
 import { RepCounter } from '@/components/combat/RepCounter';
 import { CombatTimer } from '@/components/combat/CombatTimer';
 import { HpBar } from '@/components/ui/StatBar';
 import { Colors, Fonts, Spacing, Radius } from '@/constants/theme';
 import { EXERCISES } from '@/constants/game';
-
-const { width: W, height: H } = Dimensions.get('window');
 
 export default function CombatScreen() {
   const router = useRouter();
@@ -23,24 +20,26 @@ export default function CombatScreen() {
 
   const battle = useGameStore((s) => s.battle);
   const registerRep = useGameStore((s) => s.registerRep);
-  const tickTimer = useGameStore((s) => s.tickTimer);
   const resolveBattle = useGameStore((s) => s.resolveBattle);
 
   const [countdown, setCountdown] = useState(3);
   const [isActive, setIsActive] = useState(false);
 
-  const attackFlashAnim = useRef(new Animated.Value(0)).current;
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const prevRepsRef = useRef(0);
+  // ── Local Fallback States to Guarantee UI Updates ──
+  const [localSeconds, setLocalSeconds] = useState(battle?.enemy.timeLimit || 60);
 
+  const attackFlashAnim = useRef(new Animated.Value(0)).current;
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevRepsRef = useRef(0);
   const webViewRef = useRef<WebView>(null);
 
   const exercise = battle?.enemy.exercise ?? 'push_up';
   const exerciseDef = EXERCISES[exercise];
 
+  // We are only extracting what the WebRTC engine sends us now!
   const {
-    landmarks, primaryAngle, repCount, formScore,
-    isBodyVisible, resetReps, processPoseData, debugMsg,
+    primaryAngle, repState, repCount,
+    isBodyVisible, processPoseData, debugMsg,
   } = usePoseEngine(exercise, isActive);
 
   // ── Countdown ──
@@ -58,38 +57,48 @@ export default function CombatScreen() {
     return () => clearInterval(cd);
   }, [battle?.phase]);
 
-  // ── Timer ──
+  // ── Guaranteed Local Timer ──
   useEffect(() => {
     if (!isActive) return;
-    timerRef.current = setInterval(tickTimer, 1000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [isActive, tickTimer]);
+    
+    timerIntervalRef.current = setInterval(() => {
+      setLocalSeconds((prev) => {
+        if (prev <= 1) {
+          resolveBattle('defeat');
+          router.replace('/post-battle');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => { 
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); 
+    };
+  }, [isActive, resolveBattle, router]);
 
-  // ── Rep Check ──
+  // ── Guaranteed Rep Check & Flash ──
   useEffect(() => {
     if (!isActive || !battle) return;
     if (repCount > prevRepsRef.current) {
       prevRepsRef.current = repCount;
-      registerRep();
+      registerRep(); 
 
       Animated.sequence([
         Animated.timing(attackFlashAnim, { toValue: 1, duration: 40, useNativeDriver: true }),
         Animated.timing(attackFlashAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
       ]).start();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    }
-  }, [repCount, isActive]);
 
-  // ── Game Over ──
-  useEffect(() => {
-    if (!battle) return;
-    if (battle.phase === 'victory' || battle.phase === 'defeat') {
-      if (timerRef.current) clearInterval(timerRef.current);
-      setIsActive(false);
-      resolveBattle(battle.phase);
-      setTimeout(() => router.replace('/post-battle'), 800);
+      // Check for Victory
+      if (repCount >= battle.enemy.repsRequired) {
+        if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+        setIsActive(false);
+        resolveBattle('victory');
+        setTimeout(() => router.replace('/post-battle'), 800);
+      }
     }
-  }, [battle?.phase]);
+  }, [repCount, isActive, battle, registerRep, resolveBattle, router]);
 
   if (!permission?.granted) {
     return (
@@ -113,8 +122,7 @@ export default function CombatScreen() {
   return (
     <View style={styles.screen}>
       
-      {/* ── WebRTC Camera Background ── */}
-      {/* The WebView itself is now displaying the camera feed perfectly in the background */}
+      {/* ── The MediaPipe Layer (Draws its own skeleton now!) ── */}
       <View style={StyleSheet.absoluteFill}>
         <WebView
           ref={webViewRef}
@@ -123,8 +131,8 @@ export default function CombatScreen() {
           javaScriptEnabled={true}
           domStorageEnabled={true}
           mixedContentMode="always"
-          allowsInlineMediaPlayback={true}       // <-- CRITICAL: Allows video to play without full-screening
-          mediaPlaybackRequiresUserAction={false} // <-- CRITICAL: Allows camera auto-play
+          allowsInlineMediaPlayback={true}       
+          mediaPlaybackRequiresUserAction={false} 
           allowFileAccess={true}
           allowUniversalAccessFromFileURLs={true}
           style={{ flex: 1, backgroundColor: '#000' }}
@@ -136,14 +144,13 @@ export default function CombatScreen() {
 
       {/* ── ON-SCREEN DEBUG MONITOR ── */}
       <View style={styles.debugMonitor}>
-        <Text style={styles.debugText}>MP Bridge: {debugMsg}</Text>
+        <Text style={styles.debugText}>{debugMsg}</Text>
+        <Text style={[styles.debugText, { color: repState === 'down' ? Colors.crimson : Colors.gold }]}>
+          STATE: {repState.toUpperCase()}
+        </Text>
       </View>
 
       <View style={styles.scanlineOverlay} pointerEvents="none" />
-      
-      {/* ── Pose Wireframe Overlay ── */}
-      <PoseWireframe landmarks={landmarks} formScore={formScore} width={W} height={H} />
-      
       <Animated.View style={[StyleSheet.absoluteFill, styles.attackFlash, { opacity: flashOpacity }]} pointerEvents="none" />
 
       <LinearGradient colors={['rgba(6,6,15,0.92)', 'rgba(6,6,15,0.5)', 'transparent']} style={styles.topHud} pointerEvents="none">
@@ -179,8 +186,10 @@ export default function CombatScreen() {
           </View>
         </View>
         <View style={styles.instrumentsRow}>
-          <CombatTimer seconds={battle.secondsRemaining} totalSeconds={battle.enemy.timeLimit} />
-          <RepCounter reps={battle.repsCompleted} required={battle.enemy.repsRequired} size={130} />
+          
+          <CombatTimer seconds={localSeconds} totalSeconds={battle.enemy.timeLimit} />
+          <RepCounter reps={repCount} required={battle.enemy.repsRequired} size={130} />
+          
           <View style={styles.xpPreview}>
             <Text style={styles.xpPreviewLabel}>REWARD</Text>
             <Text style={styles.xpPreviewVal}>+{battle.enemy.xpReward}</Text>
@@ -208,7 +217,7 @@ const styles = StyleSheet.create({
   countdownNumber: { fontFamily: Fonts.display, fontSize: 120, color: Colors.gold, lineHeight: 120, textShadowColor: Colors.gold, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 30 },
   countdownSub: { fontFamily: Fonts.mono, fontSize: 14, color: Colors.textMuted, letterSpacing: 6, marginTop: 8 },
   countdownExercise: { fontFamily: Fonts.display, fontSize: 24, color: Colors.teal, marginTop: 24, letterSpacing: 3 },
-  visWarning: { position: 'absolute', top: H * 0.38, alignSelf: 'center', backgroundColor: 'rgba(192,40,42,0.85)', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 6 },
+  visWarning: { position: 'absolute', top: 80, alignSelf: 'center', backgroundColor: 'rgba(192,40,42,0.85)', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 6, zIndex: 50 },
   visWarningText: { fontFamily: Fonts.mono, fontSize: 12, color: '#FFF', letterSpacing: 0.5 },
   bottomHud: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingTop: 40, paddingBottom: 32, paddingHorizontal: Spacing.xl },
   exerciseRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
@@ -228,6 +237,6 @@ const styles = StyleSheet.create({
   permBody: { fontFamily: Fonts.ui, fontSize: 15, color: Colors.textMuted, textAlign: 'center', lineHeight: 22, marginBottom: 32 },
   permBtn: { backgroundColor: Colors.teal, borderRadius: Radius.full, paddingHorizontal: 32, paddingVertical: 14 },
   permBtnText: { fontFamily: Fonts.display, fontSize: 14, color: Colors.bgVoid, letterSpacing: 1 },
-  debugMonitor: { position: 'absolute', top: 120, left: 20, zIndex: 100, backgroundColor: 'rgba(0,0,0,0.6)', padding: 6, borderRadius: 6, borderWidth: 1, borderColor: Colors.teal },
-  debugText: { color: Colors.teal, fontFamily: Fonts.mono, fontSize: 10, letterSpacing: 1 },
+  debugMonitor: { position: 'absolute', top: 120, left: 20, zIndex: 100, backgroundColor: 'rgba(0,0,0,0.8)', padding: 8, borderRadius: 6, borderWidth: 1, borderColor: Colors.teal },
+  debugText: { color: Colors.teal, fontFamily: Fonts.mono, fontSize: 12, letterSpacing: 1 },
 });

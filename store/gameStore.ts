@@ -39,6 +39,7 @@ interface GameStore {
 
   // Battle actions
   startBattle: (enemy: Enemy) => void;
+  setBattleActive: () => void; // <--- NEW: Unlocks the game logic!
   registerRep: () => void;
   tickTimer: () => void;
   resolveBattle: (outcome: 'victory' | 'defeat') => void;
@@ -73,7 +74,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   gainXp: (amount) => set((state) => {
     let { xp, level } = state.avatar;
     xp += amount;
-    // Level up loop
     while (level < MAX_LEVEL && xp >= XP_TABLE[level + 1]) {
       level += 1;
     }
@@ -114,8 +114,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     },
   }),
 
+  // ── NEW: Tells the global store the countdown is over ──
+  setBattleActive: () => set((state) => {
+    if (!state.battle) return state;
+    return { battle: { ...state.battle, phase: 'active' } };
+  }),
+
   registerRep: () => set((state) => {
-    if (!state.battle || state.battle.phase !== 'active') return state;
+    // If phase isn't 'active', this block previously rejected your push-ups!
+    if (!state.battle || state.battle.phase !== 'active') return state; 
 
     const hpPerRep = state.battle.enemy.hp / state.battle.enemy.repsRequired;
     const newReps = state.battle.repsCompleted + 1;
@@ -170,7 +177,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   resetBattle: () => set({ battle: null }),
 }));
 
-// Derived selectors (use outside store to avoid re-render loops)
 export const selectXpProgress = (state: GameStore) => {
   const { xp, level } = state.avatar;
   if (level >= MAX_LEVEL) return 1;

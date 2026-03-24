@@ -21,11 +21,10 @@ export default function CombatScreen() {
   const battle = useGameStore((s) => s.battle);
   const registerRep = useGameStore((s) => s.registerRep);
   const resolveBattle = useGameStore((s) => s.resolveBattle);
+  const setBattleActive = useGameStore((s) => s.setBattleActive); // <-- NEW!
 
   const [countdown, setCountdown] = useState(3);
   const [isActive, setIsActive] = useState(false);
-
-  // ── Local Fallback States to Guarantee UI Updates ──
   const [localSeconds, setLocalSeconds] = useState(battle?.enemy.timeLimit || 60);
 
   const attackFlashAnim = useRef(new Animated.Value(0)).current;
@@ -36,7 +35,6 @@ export default function CombatScreen() {
   const exercise = battle?.enemy.exercise ?? 'push_up';
   const exerciseDef = EXERCISES[exercise];
 
-  // We are only extracting what the WebRTC engine sends us now!
   const {
     primaryAngle, repState, repCount,
     isBodyVisible, processPoseData, debugMsg,
@@ -52,10 +50,11 @@ export default function CombatScreen() {
       if (tick <= 0) {
         clearInterval(cd);
         setIsActive(true);
+        setBattleActive(); // <-- Tells the store to unlock and accept reps!
       }
     }, 1000);
     return () => clearInterval(cd);
-  }, [battle?.phase]);
+  }, [battle?.phase, setBattleActive]);
 
   // ── Guaranteed Local Timer ──
   useEffect(() => {
@@ -80,9 +79,15 @@ export default function CombatScreen() {
   // ── Guaranteed Rep Check & Flash ──
   useEffect(() => {
     if (!isActive || !battle) return;
+    
     if (repCount > prevRepsRef.current) {
+      // Catch how many reps were done (usually 1, but this prevents dropped frames)
+      const repsScored = repCount - prevRepsRef.current;
       prevRepsRef.current = repCount;
-      registerRep(); 
+      
+      for (let i = 0; i < repsScored; i++) {
+        registerRep(); // Now the global store will actually listen to this!
+      }
 
       Animated.sequence([
         Animated.timing(attackFlashAnim, { toValue: 1, duration: 40, useNativeDriver: true }),
@@ -122,7 +127,6 @@ export default function CombatScreen() {
   return (
     <View style={styles.screen}>
       
-      {/* ── The MediaPipe Layer (Draws its own skeleton now!) ── */}
       <View style={StyleSheet.absoluteFill}>
         <WebView
           ref={webViewRef}
@@ -142,7 +146,6 @@ export default function CombatScreen() {
         />
       </View>
 
-      {/* ── ON-SCREEN DEBUG MONITOR ── */}
       <View style={styles.debugMonitor}>
         <Text style={styles.debugText}>{debugMsg}</Text>
         <Text style={[styles.debugText, { color: repState === 'down' ? Colors.crimson : Colors.gold }]}>

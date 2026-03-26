@@ -4,13 +4,17 @@
  * Wraps DashboardScreen inside a persistent bottom navigation bar
  * so players can access the Quest Map, Stats, and Profile tabs.
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DashboardScreen from '@/screens/DashboardScreen';
+import AuthScreen from '@/screens/AuthScreen';
 import { Colors, Fonts, Radius } from '@/constants/theme';
+import { supabase } from '@/utils/supabase';
+import { Session } from '@supabase/supabase-js';
+import { useGameStore } from '@/store/gameStore';
 
 type Tab = 'home' | 'quests' | 'stats' | 'profile';
 
@@ -22,7 +26,31 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 ];
 
 export default function HomeRoute() {
+  const [session, setSession] = useState<Session | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('home');
+  const loadProfile = useGameStore((state) => state.loadProfile);
+  const profileNeedsName = useGameStore((state) => state.profileNeedsName);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        loadProfile();
+      }
+    });
+  }, []);
+
+  if (!session) {
+    return <AuthScreen />;
+  }
+
+  if (profileNeedsName) {
+    return <AuthScreen forceNameStep />;
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>

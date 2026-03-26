@@ -15,6 +15,7 @@ import { ENEMIES, Enemy, XP_TABLE } from '@/constants/game';
 import { Colors, Fonts, Spacing, Radius } from '@/constants/theme';
 import { AvatarDisplay } from '@/components/avatar/AvatarDisplay';
 import { StatBar, XpBar } from '@/components/ui/StatBar';
+import { supabase } from '@/utils/supabase';
 
 const DIFFICULTY_LABELS = ['', 'Initiate', 'Adept', 'Warrior', 'Champion', 'Legend'];
 
@@ -22,6 +23,8 @@ export default function DashboardScreen() {
   const router = useRouter();
   const avatar = useGameStore((s) => s.avatar);
   const startBattle = useGameStore((s) => s.startBattle);
+  const resetAvatar = useGameStore((s) => s.resetAvatar);
+  const resetBattle = useGameStore((s) => s.resetBattle);
   const xpProgress = useGameStore(selectXpProgress);
 
   const nextLevelXp =
@@ -31,6 +34,12 @@ export default function DashboardScreen() {
     startBattle(enemy);
     router.push('/combat');
   }, [startBattle, router]);
+
+  const handleLogout = useCallback(async () => {
+    await supabase.auth.signOut();
+    resetBattle();
+    resetAvatar();
+  }, [resetAvatar, resetBattle]);
 
   const isUnlocked = (enemy: Enemy) =>
     avatar.level >= enemy.difficulty - 1;
@@ -45,6 +54,9 @@ export default function DashboardScreen() {
         <View style={styles.currencyPill}>
           <Text style={styles.currencyText}>⚔ {avatar.victories} Victories</Text>
         </View>
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.7}>
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -266,6 +278,20 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.mono,
     fontSize: 11,
     color: Colors.gold,
+  },
+  logoutBtn: {
+    marginLeft: Spacing.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.borderFaint,
+    backgroundColor: Colors.bgPanel,
+  },
+  logoutText: {
+    fontFamily: Fonts.uiBold,
+    fontSize: 12,
+    color: Colors.textMuted,
   },
   scrollContent: {
     paddingBottom: 16,

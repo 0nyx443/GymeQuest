@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { supabase } from '@/utils/supabase';
 import { Enemy, StatKey, XP_TABLE, MAX_LEVEL } from '@/constants/game';
 
 export interface PlayerStats {
@@ -31,6 +32,7 @@ export interface ActiveBattle {
 interface GameStore {
   avatar: AvatarState;
   battle: ActiveBattle | null;
+  profileNeedsName: boolean;
 
   // Avatar actions
   gainXp: (amount: number) => void;
@@ -44,6 +46,11 @@ interface GameStore {
   tickTimer: () => void;
   resolveBattle: (outcome: 'victory' | 'defeat') => void;
   resetBattle: () => void;
+  resetAvatar: () => void;
+  setAvatar: (avatarData: Partial<AvatarState>) => void;
+  loadProfile: () => Promise<boolean>;
+  syncProfile: () => Promise<void>;
+  setProfileNeedsName: (need: boolean) => void;
 }
 
 function xpToNextLevel(level: number): number {
@@ -69,6 +76,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     totalBattles: 0,
     victories: 0,
   },
+  profileNeedsName: false,
   battle: null,
 
   gainXp: (amount) => set((state) => {
@@ -172,9 +180,71 @@ export const useGameStore = create<GameStore>((set, get) => ({
       battle.repsCompleted,
       battle.enemy.id,
     );
+    // Persist the latest avatar stats to Supabase in the background
+    get().syncProfile().catch(() => {});
   },
 
   resetBattle: () => set({ battle: null }),
+  resetAvatar: () => set({ avatar: { name: 'Aethor', class: 'Iron Aspirant', level: 1, xp: 0, stats: { strength: 0, agility: 0, stamina: 0 }, defeatedEnemies: [], totalReps: 0, totalBattles: 0, victories: 0 } }),
+  setAvatar: (avatarData) => set((state) => ({ avatar: { ...state.avatar, ...avatarData } })),
+  setProfileNeedsName: (need) => set({ profileNeedsName: need }),
+
+  loadProfile: async () => {
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData?.user;
+    if (!user) {
+      set({ profileNeedsName: true });
+      return true;
+    }
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+    if (error || !data) {
+      set({ profileNeedsName: true });
+      return true;
+    }
+    const emailPrefix = user.email?.split('@')[0] ?? '';
+    const needsName = !data.name || data.name.trim().length === 0 || data.name === emailPrefix;
+    set((state) => ({
+      avatar: {
+        ...state.avatar,
+        name: data.name ?? state.avatar.name,
+        level: data.level ?? 1,
+        xp: data.exp ?? 0,
+        stats: {
+          strength: data.str ?? 0,
+          agility: data.agi ?? 0,
+          stamina: data.sta ?? 0,
+        },
+        totalReps: data.total_reps ?? 0,
+        totalBattles: data.battles ?? 0,
+        victories: data.victories ?? 0,
+      },
+      profileNeedsName: needsName,
+    }));
+    return needsName;
+  },
+
+  syncProfile: async () => {
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData?.user;
+    if (!user) return;
+    const state = get().avatar;
+    await supabase.from('profiles').upsert({
+      id: user.id,
+      name: state.name,
+      level: state.level,
+      exp: state.xp,
+      str: state.stats.strength,
+      agi: state.stats.agility,
+      sta: state.stats.stamina,
+      battles: state.totalBattles,
+      victories: state.victories,
+      total_reps: state.totalReps,
+    });
+  },
 }));
 
 export const selectXpProgress = (state: GameStore) => {

@@ -33,6 +33,8 @@ interface GameStore {
   avatar: AvatarState;
   battle: ActiveBattle | null;
   profileNeedsName: boolean;
+  showTutorial: boolean;
+  isProfileLoaded: boolean;
 
   // Avatar actions
   gainXp: (amount: number) => void;
@@ -51,6 +53,7 @@ interface GameStore {
   loadProfile: () => Promise<boolean>;
   syncProfile: () => Promise<void>;
   setProfileNeedsName: (need: boolean) => void;
+  setShowTutorial: (show: boolean) => void;
 }
 
 function xpToNextLevel(level: number): number {
@@ -77,6 +80,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     victories: 0,
   },
   profileNeedsName: false,
+  showTutorial: false,
+  isProfileLoaded: false,
   battle: null,
 
   gainXp: (amount) => set((state) => {
@@ -188,12 +193,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
   resetAvatar: () => set({ avatar: { name: 'Aethor', class: 'Iron Aspirant', level: 1, xp: 0, stats: { strength: 0, agility: 0, stamina: 0 }, defeatedEnemies: [], totalReps: 0, totalBattles: 0, victories: 0 } }),
   setAvatar: (avatarData) => set((state) => ({ avatar: { ...state.avatar, ...avatarData } })),
   setProfileNeedsName: (need) => set({ profileNeedsName: need }),
+  setShowTutorial: (show) => set({ showTutorial: show }),
 
   loadProfile: async () => {
     const { data: userData } = await supabase.auth.getUser();
     const user = userData?.user;
     if (!user) {
-      set({ profileNeedsName: true });
+      set({ profileNeedsName: true, isProfileLoaded: true });
       return true;
     }
     const { data, error } = await supabase
@@ -202,7 +208,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       .eq('id', user.id)
       .single();
     if (error || !data) {
-      set({ profileNeedsName: true });
+      set({ profileNeedsName: true, isProfileLoaded: true });
       return true;
     }
     const emailPrefix = user.email?.split('@')[0] ?? '';
@@ -223,6 +229,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         victories: data.victories ?? 0,
       },
       profileNeedsName: needsName,
+      isProfileLoaded: true,
     }));
     return needsName;
   },

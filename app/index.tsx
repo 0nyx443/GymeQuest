@@ -11,6 +11,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DashboardScreen from '@/screens/DashboardScreen';
 import AuthScreen from '@/screens/AuthScreen';
+import RegisterScreen from '@/screens/RegisterScreen';
+import TutorialScreen from '@/screens/TutorialScreen';
 import { Colors, Fonts, Radius } from '@/constants/theme';
 import { supabase } from '@/utils/supabase';
 import { Session } from '@supabase/supabase-js';
@@ -30,6 +32,8 @@ export default function HomeRoute() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const loadProfile = useGameStore((state) => state.loadProfile);
   const profileNeedsName = useGameStore((state) => state.profileNeedsName);
+  const showTutorial = useGameStore((state) => state.showTutorial);
+  const isProfileLoaded = useGameStore((state) => state.isProfileLoaded);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -39,7 +43,11 @@ export default function HomeRoute() {
     supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
+        useGameStore.setState({ isProfileLoaded: false });
         loadProfile();
+      } else {
+        useGameStore.setState({ isProfileLoaded: false, profileNeedsName: false, showTutorial: false });
+        useGameStore.getState().resetAvatar();
       }
     });
   }, []);
@@ -48,8 +56,16 @@ export default function HomeRoute() {
     return <AuthScreen />;
   }
 
+  if (!isProfileLoaded) {
+    return <View style={{ flex: 1, backgroundColor: '#F3FAFF' }} />;
+  }
+
   if (profileNeedsName) {
-    return <AuthScreen forceNameStep />;
+    return <RegisterScreen onBack={() => { supabase.auth.signOut(); }} />;
+  }
+
+  if (showTutorial) {
+    return <TutorialScreen />;
   }
 
   return (

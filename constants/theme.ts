@@ -48,6 +48,23 @@ export const Fonts = {
   uiBold: 'Rajdhani_700Bold',
   uiLight: 'Rajdhani_300Light',
   mono: 'ShareTechMono_400Regular',
+  pixel: 'PressStart2P_400Regular', // pixel-art heading
+  vt323: 'VT323_400Regular',        // pixel-art body / UI
+  spaceGrotesk: 'SpaceGrotesk_700Bold',
+} as const;
+
+// Auth-screen design tokens (from Figma spec)
+export const AuthColors = {
+  bg:          '#F3FAFF',
+  navy:        '#123441',
+  crimson:     '#BB152C',
+  gold:        '#765A05',
+  goldBorder:  '#DAB65E',
+  white:       '#FFFFFF',
+  labelMuted:  '#BCC9CC',
+  textDark:    '#3D494C',
+  tealLink:    '#006A60',
+  inputShadow: '#123441',
 } as const;
 
 export const Spacing = {

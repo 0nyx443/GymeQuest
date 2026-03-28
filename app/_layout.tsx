@@ -30,6 +30,15 @@ import {
 import {
   ShareTechMono_400Regular,
 } from '@expo-google-fonts/share-tech-mono';
+import {
+  PressStart2P_400Regular,
+} from '@expo-google-fonts/press-start-2p';
+import {
+  VT323_400Regular,
+} from '@expo-google-fonts/vt323';
+import {
+  SpaceGrotesk_700Bold,
+} from '@expo-google-fonts/space-grotesk';
 
 // Keep splash visible until fonts load
 SplashScreen.preventAutoHideAsync();
@@ -45,6 +54,9 @@ export default function RootLayout() {
     Rajdhani_600SemiBold,
     Rajdhani_700Bold,
     ShareTechMono_400Regular,
+    PressStart2P_400Regular,
+    VT323_400Regular,
+    SpaceGrotesk_700Bold,
   });
 
   useEffect(() => {

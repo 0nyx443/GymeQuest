@@ -121,9 +121,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.7}>
-          <Text style={styles.logoutText}>LOGOUT</Text>
-        </TouchableOpacity>
+     
 
       </ScrollView>
     </View>

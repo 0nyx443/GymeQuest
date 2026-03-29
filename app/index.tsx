@@ -11,7 +11,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DashboardScreen from '@/screens/DashboardScreen';
 import QuestScreen from '@/screens/QuestScreen';
-import StatsScreen from '@/screens/StatsScreen';
+import GuildScreen from '@/screens/GuildScreen';
+import ProfileScreen from '@/screens/ProfileScreen';
 import AuthScreen from '@/screens/AuthScreen';
 import RegisterScreen from '@/screens/RegisterScreen';
 import TutorialScreen from '@/screens/TutorialScreen';
@@ -20,12 +21,12 @@ import { supabase } from '@/utils/supabase';
 import { Session } from '@supabase/supabase-js';
 import { useGameStore } from '@/store/gameStore';
 
-type Tab = 'home' | 'quests' | 'stats' | 'profile';
+type Tab = 'home' | 'quests' | 'guild' | 'profile';
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'home',    label: 'Home',    icon: '⚔' },
   { id: 'quests',  label: 'Quests',  icon: '🗺' },
-  { id: 'stats',   label: 'Stats',   icon: '📊' },
+  { id: 'guild',   label: 'Guild',   icon: '🛡' },
   { id: 'profile', label: 'Profile', icon: '👤' },
 ];
 
@@ -80,12 +81,8 @@ export default function HomeRoute() {
       <View style={styles.content}>
         {activeTab === 'home' && <DashboardScreen />}
         {activeTab === 'quests' && <QuestScreen />}
-        {activeTab === 'stats' && <StatsScreen />}
-        {activeTab === 'profile' && (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: Fonts.pixel, color: AuthColors.navy }}>PROFILE (COMING SOON)</Text>
-          </View>
-        )}
+        {activeTab === 'guild' && <GuildScreen />}
+        {activeTab === 'profile' && <ProfileScreen />}
       </View>
 
       {/* Bottom Nav */}

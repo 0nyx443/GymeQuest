@@ -1,13 +1,18 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, StatusBar, TouchableOpacity } from 'react-native';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { useGameStore } from '@/store/gameStore';
+import { supabase } from '@/utils/supabase';
 
-export default function StatsScreen() {
+export default function ProfileScreen() {
   const avatar = useGameStore((s) => s.avatar);
 
   // Helper for max 100 percent
   const getPercent = (val: number): any => `${Math.min((val / 100) * 100, 100)}%`;
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
 
   return (
     <View style={styles.screen}>
@@ -21,7 +26,7 @@ export default function StatsScreen() {
         {/* --- Page Header --- */}
         <View style={styles.pageHeader}>
           <Text style={styles.headerLicense}>[ ADVENTURER LICENSE ]</Text>
-          <Text style={styles.headerTitle}>STATS</Text>
+          <Text style={styles.headerTitle}>PROFILE</Text>
         </View>
 
         {/* --- Adventurer ID Card --- */}
@@ -126,12 +131,18 @@ export default function StatsScreen() {
           </View>
         </View>
 
+        {/* --- Logout Button --- */}
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
+          <Text style={styles.logoutText}>LOGOUT</Text>
+        </TouchableOpacity>
+
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // ... original styles from StatsScreen ...
   screen: {
     flex: 1,
     backgroundColor: '#FDF1E6',
@@ -324,7 +335,9 @@ const styles = StyleSheet.create({
   },
 
   // History Grid
-  historySection: {},
+  historySection: {
+    marginBottom: 40,
+  },
   historyGrid: {
     flexDirection: 'row',
     gap: 16,
@@ -362,6 +375,26 @@ const styles = StyleSheet.create({
   historyVal: {
     fontFamily: Fonts.vt323,
     fontSize: 34,
+    color: AuthColors.crimson,
+  },
+
+  // Logout Button
+  logoutButton: {
+    backgroundColor: '#EBEBEB',
+    borderWidth: 3,
+    borderColor: AuthColors.navy,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: AuthColors.navy,
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,
+  },
+  logoutText: {
+    fontFamily: Fonts.pixel,
+    fontSize: 14,
     color: AuthColors.crimson,
   }
 });

@@ -47,6 +47,32 @@ export function ProfileLicense() {
                 </View>
             </View>
 
+            {/* Physical Traits */}
+            <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                    <MaterialCommunityIcons name="human" size={20} color={AuthColors.crimson} />
+                    <Text style={styles.sectionTitle}>PHYSICAL TRAITS</Text>
+                </View>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginTop: 8 }}>
+                    <View style={{ width: "48%", marginBottom: 12 }}>
+                        <Text style={styles.infoLabel}>AGE</Text>
+                        <Text style={styles.infoName}>{avatar.age || "?"}</Text>
+                    </View>
+                    <View style={{ width: "48%", marginBottom: 12 }}>
+                        <Text style={styles.infoLabel}>SEX</Text>
+                        <Text style={styles.infoName}>{avatar.sex ? (avatar.sex as string).toUpperCase() : "?"}</Text>
+                    </View>
+                    <View style={{ width: "48%", marginBottom: 12 }}>
+                        <Text style={styles.infoLabel}>HEIGHT</Text>
+                        <Text style={styles.infoName}>{avatar.height_cm ? `${avatar.height_cm} CM` : "?"}</Text>
+                    </View>
+                    <View style={{ width: "48%", marginBottom: 12 }}>
+                        <Text style={styles.infoLabel}>WEIGHT</Text>
+                        <Text style={styles.infoName}>{avatar.weight_kg ? `${avatar.weight_kg} KG` : "?"}</Text>
+                    </View>
+                </View>
+            </View>
+
             {/* Core Attributes */}
             <View style={styles.section}>
                 <View style={styles.sectionHeader}>
@@ -105,16 +131,6 @@ export function ProfileLicense() {
                         <MaterialCommunityIcons name="flash-outline" size={20} color="#3D494C" />
                         <Text style={styles.recordLabel}>TOTAL REPS</Text>
                         <Text style={styles.recordVal}>{avatar.totalReps.toLocaleString()}</Text>
-                    </View>
-                    <View style={styles.recordCard}>
-                        <MaterialCommunityIcons name="map-marker-distance" size={20} color="#3D494C" />
-                        <Text style={styles.recordLabel}>KM TRAVELED</Text>
-                        <Text style={styles.recordVal}>142.5</Text>
-                    </View>
-                    <View style={styles.recordCard}>
-                        <MaterialCommunityIcons name="star-circle" size={20} color="#3D494C" />
-                        <Text style={styles.recordLabel}>S-RANK FINISH</Text>
-                        <Text style={styles.recordVal}>12</Text>
                     </View>
                 </View>
             </View>

@@ -18,6 +18,10 @@ export interface AvatarState {
   totalReps: number;
   totalBattles: number;
   victories: number;
+  age?: number;
+  sex?: string;
+  height_cm?: number;
+  weight_kg?: number;
 }
 
 export interface ActiveBattle {
@@ -227,6 +231,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
         totalReps: data.total_reps ?? 0,
         totalBattles: data.battles ?? 0,
         victories: data.victories ?? 0,
+        age: data.age,
+        sex: data.sex,
+        height_cm: data.height_cm,
+        weight_kg: data.weight_kg,
       },
       profileNeedsName: needsName,
       isProfileLoaded: true,
@@ -250,6 +258,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       battles: state.totalBattles,
       victories: state.victories,
       total_reps: state.totalReps,
+      age: state.age,
+      sex: state.sex,
+      height_cm: state.height_cm,
+      weight_kg: state.weight_kg,
     });
   },
 }));

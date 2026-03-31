@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -137,6 +138,25 @@ export default function GuildScreen() {
   const [availableGuilds, setAvailableGuilds] = useState<any[]>([]);
   const [isBrowseMode, setIsBrowseMode] = useState(false);
   const [loadingGuilds, setLoadingGuilds] = useState(false);
+
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [selectedProfileData, setSelectedProfileData] = useState<any>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+
+  const fetchProfile = async (userId: string) => {
+    setSelectedProfileId(userId);
+    setLoadingProfile(true);
+    setSelectedProfileData(null);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('name, str, agi, sta, victories, total_reps, level') // victories = monsters defeated
+      .eq('id', userId)
+      .single();
+    if (!error && data) {
+      setSelectedProfileData(data);
+    }
+    setLoadingProfile(false);
+  };
 
   const loadGuildContext = useCallback(async () => {
     setScreenError(null);
@@ -673,13 +693,74 @@ export default function GuildScreen() {
                     </Text>
                     <Text style={styles.memberClass}>{member.role.toUpperCase() === 'OWNER' ? 'LEADER' : member.role.toUpperCase()}</Text>
                   </View>
-                  <Text style={styles.memberStatusText}>Joined {formatJoinedDate(member.joinedAt)}</Text>
+                  <View style={styles.memberRow}>
+                    <Text style={styles.memberStatusText}>Joined {formatJoinedDate(member.joinedAt)}</Text>
+                    <TouchableOpacity 
+                      style={styles.viewProfileBtn}
+                      onPress={() => fetchProfile(member.userId)}
+                    >
+                      <Text style={styles.viewProfileText}>VIEW</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             ))
           )}
         </View>
       </ScrollView>
+
+      {/* Member Profile Modal */}
+      <Modal visible={!!selectedProfileId} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {loadingProfile ? (
+              <ActivityIndicator size="large" color={AuthColors.navy} />
+            ) : selectedProfileData ? (
+              <>
+                <Text style={styles.modalTitle}>{selectedProfileData.name}</Text>
+                
+                <View style={styles.statRow}>
+                  <Text style={styles.statLabel}>Level</Text>
+                  <Text style={styles.statValue}>{selectedProfileData.level || 1}</Text>
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={styles.statLabel}>Strength</Text>
+                  <Text style={styles.statValue}>{selectedProfileData.str || 0}</Text>
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={styles.statLabel}>Agility</Text>
+                  <Text style={styles.statValue}>{selectedProfileData.agi || 0}</Text>
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={styles.statLabel}>Stamina</Text>
+                  <Text style={styles.statValue}>{selectedProfileData.sta || 0}</Text>
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={styles.statLabel}>Monsters Defeated</Text>
+                  <Text style={styles.statValue}>{selectedProfileData.victories || 0}</Text>
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={styles.statLabel}>Total Reps</Text>
+                  <Text style={styles.statValue}>{selectedProfileData.total_reps || 0}</Text>
+                </View>
+
+                <TouchableOpacity 
+                  style={styles.closeProfileBtn}
+                  onPress={() => {
+                    setSelectedProfileId(null);
+                    setSelectedProfileData(null);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.closeProfileText}>CLOSE PROFILE</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <Text style={styles.helpText}>Could not load profile.</Text>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1140,4 +1221,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#3D494C',
   },
+  viewProfileBtn: { backgroundColor: "#CC2B3E", paddingHorizontal: 12, paddingVertical: 4, borderWidth: 2, borderColor: "#123441" },
+  viewProfileText: { fontFamily: Fonts.vt323, fontSize: 16, color: "#FFF" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" },
+  modalContent: { width: "85%", backgroundColor: "#FDF1E6", borderWidth: 4, borderColor: "#123441", padding: 20 },
+  modalTitle: { fontFamily: Fonts.pixel, fontSize: 18, color: "#123441", marginBottom: 16, textAlign: "center" },
+  statRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 12, borderBottomWidth: 1, borderBottomColor: "rgba(18,52,65,0.1)", paddingBottom: 4 },
+  statLabel: { fontFamily: Fonts.vt323, fontSize: 20, color: "#3D494C" },
+  statValue: { fontFamily: Fonts.vt323, fontSize: 20, color: "#006A60" },
+  closeProfileBtn: { backgroundColor: "#123441", padding: 12, borderWidth: 2, borderColor: "#000", marginTop: 20, alignItems: "center" },
+  closeProfileText: { fontFamily: Fonts.pixel, fontSize: 14, color: "#FFF" }
 });

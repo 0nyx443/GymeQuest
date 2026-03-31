@@ -308,6 +308,10 @@ export default function RegisterScreen({ onBack }: Props) {
       battles: 0,
       victories: 0,
       total_reps: 0,
+      age: parseInt(age) || null,
+      sex: sex,
+      height_cm: heightCm || null,
+      weight_kg: weightKg || null,
     });
 
     setLoading(false);
@@ -317,7 +321,13 @@ export default function RegisterScreen({ onBack }: Props) {
       return;
     }
 
-    setAvatar({ name: heroName.trim() });
+    setAvatar({
+      name: heroName.trim(),
+      age: parseInt(age) || undefined,
+      sex: sex,
+      height_cm: heightCm || undefined,
+      weight_kg: weightKg || undefined,
+    });
     // Update atomically using Zustand so we don't flash the Dashboard
     useGameStore.setState({ showTutorial: true, profileNeedsName: false });
     

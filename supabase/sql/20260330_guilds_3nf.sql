@@ -403,3 +403,64 @@ $$;
 
 revoke all on function public.leave_guild(uuid) from public;
 grant execute on function public.leave_guild(uuid) to authenticated;
+
+create or replace function public.leave_guild(p_guild_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_role public.guild_role;
+  v_member_count int;
+  v_new_owner_id uuid;
+begin
+  -- Get user role
+  select role into v_user_role
+  from public.guild_memberships
+  where user_id = auth.uid() and guild_id = p_guild_id and status = 'active';
+
+  if v_user_role is null then
+    raise exception 'You are not an active member of this guild';
+  end if;
+
+  -- Count remaining active members (including the one leaving for math context, but just counting them to see if this is the last one)
+  select count(*) into v_member_count
+  from public.guild_memberships
+  where guild_id = p_guild_id and status = 'active';
+
+  if v_user_role = 'owner' then
+    if v_member_count > 1 then
+      -- Find another member to promote
+      select user_id into v_new_owner_id
+      from public.guild_memberships
+      where guild_id = p_guild_id and status = 'active' and user_id != auth.uid()
+      order by joined_at asc
+      limit 1;
+
+      -- Promote them to owner
+      update public.guild_memberships
+      set role = 'owner'
+      where user_id = v_new_owner_id and guild_id = p_guild_id;
+    else
+      -- Optional: Delete the guild if the owner leaves and they are the last member (handled differently or ignored here depending on logic but usually good practice to clean up)
+      -- delete from public.guilds where id = p_guild_id;
+      null;
+    end if;
+  end if;
+
+  -- Set status to left
+  update public.guild_memberships
+  set status = 'left', left_at = now()
+  where user_id = auth.uid() and guild_id = p_guild_id and status = 'active';
+end;
+$$;
+
+-- Add policy to ensure profiles are readable by other users
+alter table public.profiles enable row level security;
+
+drop policy if exists "Profiles are viewable by everyone" on public.profiles;
+create policy "Profiles are viewable by everyone"
+on public.profiles for select
+to authenticated
+using (true);

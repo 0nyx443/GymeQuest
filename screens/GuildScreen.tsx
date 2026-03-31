@@ -298,9 +298,12 @@ export default function GuildScreen() {
 
   const handleFetchGuilds = useCallback(async () => {
     setLoadingGuilds(true);
-    const { data, error } = await supabase.from("guilds").select("id, name, level, exp, max_members").order("level", { ascending: false }).limit(20);
-    if (!error && data) {
-      setAvailableGuilds(data);
+    const { data: guildsData, error } = await supabase.rpc('get_available_guilds');
+      
+    if (!error && guildsData) {
+      setAvailableGuilds(guildsData);
+    } else {
+      setAvailableGuilds([]);
     }
     setLoadingGuilds(false);
   }, []);
@@ -334,10 +337,14 @@ export default function GuildScreen() {
   const handleLeaveGuild = useCallback(async () => {
     if (!guild) return;
     try {
-      await supabase.rpc("leave_guild", { p_guild_id: guild.id });
+      const { error } = await supabase.rpc("leave_guild", { p_guild_id: guild.id });
+      if (error) {
+        setScreenError("Failed to leave guild: " + toFriendlyError(error.message));
+        return;
+      }
       await loadGuildContext();
-    } catch (err) {
-      setScreenError("Failed to leave guild.");
+    } catch (err: any) {
+      setScreenError("Failed to leave guild: " + err.message);
     }
   }, [guild, loadGuildContext]);
 
@@ -575,7 +582,7 @@ export default function GuildScreen() {
               <Text style={styles.statPillText}>{members.length}/{guild.max_members} MEM</Text>
             </View>
             <View style={styles.statPill}>
-              <Text style={styles.statPillText}>{(myRole ?? 'member').toUpperCase()}</Text>
+              <Text style={styles.statPillText}>{(myRole ?? 'member').toUpperCase() === 'OWNER' ? 'LEADER' : (myRole ?? 'member').toUpperCase()}</Text>
             </View>
           </View>
         </View>
@@ -664,7 +671,7 @@ export default function GuildScreen() {
                       {member.name}
                       {member.userId === currentUserId ? ' (You)' : ''}
                     </Text>
-                    <Text style={styles.memberClass}>{member.role.toUpperCase()}</Text>
+                    <Text style={styles.memberClass}>{member.role.toUpperCase() === 'OWNER' ? 'LEADER' : member.role.toUpperCase()}</Text>
                   </View>
                   <Text style={styles.memberStatusText}>Joined {formatJoinedDate(member.joinedAt)}</Text>
                 </View>

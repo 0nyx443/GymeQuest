@@ -70,7 +70,7 @@ export function QuestCard({ enemy, isLocked, onPress }: QuestCardProps) {
                         <View style={styles.statsRow}>
                             <View style={styles.badge}>
                                 <Text style={styles.badgeText}>
-                                    {enemy.repsRequired} {(EXERCISES[enemy.exercise as any]?.label || enemy.exercise).toUpperCase()}S
+                                    {enemy.repsRequired} {(EXERCISES[enemy.exercise as keyof typeof EXERCISES]?.label || enemy.exercise).toUpperCase()}S
                                 </Text>
                             </View>
                             <View style={styles.xpBox}>

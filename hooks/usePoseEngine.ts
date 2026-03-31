@@ -20,19 +20,19 @@ export function usePoseEngine(exercise: ExerciseType, active: boolean): PoseEngi
   const [repState, setRepState] = useState<RepState>('up');
   const [primaryAngle, setPrimaryAngle] = useState(180);
   const [isBodyVisible, setIsBodyVisible] = useState(true);
-  const [debugMsg, setDebugMsg] = useState("Booting AI Engine..."); 
+  const [debugMsg, setDebugMsg] = useState("Booting AI Engine...");
 
   const processPoseData = useCallback((jsonString: string) => {
     try {
       const parsed = JSON.parse(jsonString);
 
       if (parsed.log) {
-        setDebugMsg(parsed.log); 
+        setDebugMsg(parsed.log);
         return;
       }
 
       // Only update stats if the battle is active and we receive a pose update
-      if (!active || parsed.type !== 'POSE_UPDATE') return; 
+      if (!active || parsed.type !== 'POSE_UPDATE') return;
 
       setPrimaryAngle(parsed.angle);
       setRepState(parsed.state);
@@ -136,8 +136,8 @@ export const MEDIAPIPE_WEBVIEW_HTML = `
         }
 
         // 2. DRAW SKELETON DIRECTLY IN WEBVIEW (Zero Lag!)
-        drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#1DB8A0', lineWidth: 4});
-        drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#C8922A', lineWidth: 2, radius: 4});
+        drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#48CAE4', lineWidth: 4});
+        drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#48CAE4', lineWidth: 2, radius: 4});
         canvasCtx.restore();
 
         // 3. CALCULATE PUSH UP LOGIC IN WEBVIEW

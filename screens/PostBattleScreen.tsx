@@ -1,76 +1,43 @@
-/**
- * screens/PostBattleScreen.tsx
- *
- * Victory: animated XP gain, stat boosts, level-up fanfare.
- * Defeat: encouraging message, reps completed vs needed, retry option.
- */
 import React, { useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Animated, ScrollView,
+  Animated, Image, ScrollView
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { MaterialIcons } from '@expo/vector-icons';
 
-import { useGameStore, selectXpProgress } from '@/store/gameStore';
-import { XP_TABLE } from '@/constants/game';
-import { AvatarDisplay } from '@/components/avatar/AvatarDisplay';
-import { Colors, Fonts, Spacing, Radius } from '@/constants/theme';
+import { useGameStore } from '@/store/gameStore';
+import { AuthColors, Fonts } from '@/constants/theme';
 
 export default function PostBattleScreen() {
   const router = useRouter();
-  const avatar = useGameStore((s) => s.avatar);
   const battle = useGameStore((s) => s.battle);
   const resetBattle = useGameStore((s) => s.resetBattle);
-  const xpProgress = useGameStore(selectXpProgress);
 
   const isVictory = battle?.phase === 'victory';
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
-  const xpAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.85)).current;
 
   useEffect(() => {
-    // Haptic pattern
     if (isVictory) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => { });
     } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => { });
     }
 
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
-      Animated.timing(scaleAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
     ]).start();
-
-    // XP bar fill animation
-    setTimeout(() => {
-      Animated.timing(xpAnim, { toValue: xpProgress, duration: 1200, useNativeDriver: false }).start();
-    }, 700);
-  }, []);
-
-  const xpBarWidth = xpAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
-  });
+  }, [isVictory]);
 
   const handleContinue = () => {
     resetBattle();
     router.replace('/');
-  };
-
-  const handleRetry = () => {
-    if (!battle?.enemy) {
-      router.replace('/');
-      return;
-    }
-    // Re-queue same enemy
-    useGameStore.getState().startBattle(battle.enemy);
-    router.replace('/combat');
   };
 
   if (!battle) {
@@ -80,450 +47,329 @@ export default function PostBattleScreen() {
 
   const repsCompleted = battle.repsCompleted;
   const repsRequired = battle.enemy.repsRequired;
-  const statBoosts = battle.enemy.statBoosts;
 
+  if (isVictory) {
+    return (
+      <View style={styles.vScreen}>
+
+        <LinearGradient colors={['#f3faff', '#c6e8f8']} style={StyleSheet.absoluteFillObject} />
+
+        <Animated.View style={{ flex: 1, zIndex: 10, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+          <ScrollView contentContainerStyle={styles.mainWrap} showsVerticalScrollIndicator={false}>
+            <Text style={styles.vTitle}>VICTORY!</Text>
+
+            <View style={styles.vAvatarBlock}>
+              <Image
+                source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB9nq2aQ1p27r1iq1uau_JksTlG1KktuA64yKAO8ARKXPtxB8QWLL2OMT_5PTRWG0i25EMAT_XUzOn4AGPkhDqhA-LRQf5s0XglzG73upgBkhNTS_w7kj8FR4xqKFWdJAmhIOYlaKwH9s1jvFsEHjEWmD8wmr57XsoiF_C3AyQ5NCzqONww7RY1PLtHoC16M0yF5AesgUm7CguIYJcaPdcXu2iNA1Rocf6Z8MpQ4htt4KZD8vdo4QOkbf3GBn-r2MPHY71jOpgvL9-W' }}
+                style={styles.vAvatarImage}
+              />
+              <View style={styles.vAvatarShadow} />
+            </View>
+
+            <View style={styles.vRewardCard}>
+              <View style={styles.vRewardHeader}>
+                <MaterialIcons name="inventory" size={32} color={AuthColors.gold} />
+                <View>
+                  <Text style={styles.vRewardSub}>QUEST COMPLETE</Text>
+                  <Text style={styles.vRewardTitle}>{battle.enemy.name.toUpperCase()}</Text>
+                </View>
+              </View>
+
+              <View style={styles.vRewardContent}>
+                <Image
+                  source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCnSzZuwSZIcbUanXq6gCxThPFUU0Y997KrTGisz57YQNnDx4s_gE2D63A2ht2qEp4kKiS9QzbvjLE1I7tby8IW34zndPAiZyyzq1hspRSTL5FXi2KE1fDc6ZFRgXaYh8eCQ__bR0yowaLJm9U2CMXN5h_Qata6eUhp9jEl_X0ZpzTVg6IcM4byqgBK8REASG9TIJcb7JrC2JU9dvUmMlwDdMI4wUMEY3BcSHsSIm2lKClFAqMdyAd8hTG3ykbHvANpcBJXGV_ZPcis' }}
+                  style={styles.vChestImage}
+                />
+                <Text style={styles.vRewardXp}>+{battle.enemy.xpReward} XP</Text>
+                <Text style={styles.vRewardLoot}>Loot Gained: 50 Gold</Text>
+              </View>
+
+              <TouchableOpacity style={styles.vBtn} onPress={handleContinue}>
+                <Text style={styles.vBtnText}>COLLECT REWARD</Text>
+                <MaterialIcons name="keyboard-double-arrow-right" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </Animated.View>
+      </View>
+    );
+  }
+
+  // DEFEAT
   return (
-    <View style={styles.screen}>
-      {/* Background gradient */}
-      <LinearGradient
-        colors={
-          isVictory
-            ? ['rgba(56,217,112,0.08)', Colors.bgVoid, Colors.bgDeep]
-            : ['rgba(192,40,42,0.08)', Colors.bgVoid, Colors.bgDeep]
-        }
-        style={StyleSheet.absoluteFill}
-      />
+    <View style={styles.dScreen}>
 
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── Result banner ── */}
-        <Animated.View
-          style={[
-            styles.banner,
-            { opacity: fadeAnim, transform: [{ scale: scaleAnim }] },
-          ]}
-        >
-          <Text style={[
-            styles.bannerText,
-            isVictory ? styles.victoryText : styles.defeatText,
-          ]}>
-            {isVictory ? 'VICTORY' : 'DEFEAT'}
-          </Text>
-          <Text style={styles.bannerSub}>
-            {isVictory
-              ? `${battle.enemy.name} has fallen.`
-              : "The enemy endures... for now."}
-          </Text>
-        </Animated.View>
+      <Animated.View style={{ flex: 1, zIndex: 10, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+        <ScrollView contentContainerStyle={styles.mainWrap} showsVerticalScrollIndicator={false}>
+          <Text style={styles.dTitle}>WIPED OUT</Text>
 
-        {/* ── Avatar ── */}
-        <Animated.View
-          style={[
-            styles.avatarBlock,
-            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-          ]}
-        >
-          <AvatarDisplay level={avatar.level} size={100} animated={isVictory} />
-          {isVictory && (
-            <Text style={styles.levelUpTag}>Level {avatar.level}</Text>
-          )}
-        </Animated.View>
-
-        {/* ── Stats block ── */}
-        <Animated.View
-          style={[
-            styles.card,
-            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-          ]}
-        >
-          {/* Rep summary */}
-          <View style={styles.repSummaryRow}>
-            <View style={styles.repSummaryItem}>
-              <Text style={styles.repSummaryVal}>{repsCompleted}</Text>
-              <Text style={styles.repSummaryLabel}>Reps Completed</Text>
-            </View>
-            <View style={styles.repSummaryDivider} />
-            <View style={styles.repSummaryItem}>
-              <Text style={styles.repSummaryVal}>{repsRequired}</Text>
-              <Text style={styles.repSummaryLabel}>Reps Required</Text>
-            </View>
-            <View style={styles.repSummaryDivider} />
-            <View style={styles.repSummaryItem}>
-              <Text style={[styles.repSummaryVal, { color: isVictory ? Colors.hpGreen : Colors.crimson }]}>
-                {Math.round((repsCompleted / repsRequired) * 100)}%
-              </Text>
-              <Text style={styles.repSummaryLabel}>Completion</Text>
-            </View>
-          </View>
-
-          {/* Rep progress bar */}
-          <View style={styles.repTrack}>
-            <View
-              style={[
-                styles.repFill,
-                {
-                  width: `${Math.min(repsCompleted / repsRequired, 1) * 100}%` as any,
-                  backgroundColor: isVictory ? Colors.hpGreen : Colors.crimson,
-                },
-              ]}
+          <View style={styles.dAvatarBlock}>
+            <Image
+              source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCa4NOH0ZDPE0XhdiMHmYVTbnn-CyOjpC9dcKQ3nINMD9YL17sHGGTqdsxyqgSmgjSx14B17Sy92KS1VyJteSLwoG0RHR9GqvOmCbUlJNKrAHuMMyW8pf69I0c0RQTIM7nh2_o0APNG4I-p8DwekWc2zTb3gtVVK-BpjjVKGz3jCx6Hv7S9IpnOiDgtXaD5J1jB8IAOCWk36in0vEOnQm2Y1PPiZn0LkEbgDMvBW1vWnLDex5Mcc4NME7-dRQf5Xv3TDFDF6n_wTO2Q' }}
+              style={styles.dAvatarImage}
             />
           </View>
-        </Animated.View>
 
-        {/* ── XP / Rewards (victory only) ── */}
-        {isVictory && (
-          <Animated.View
-            style={[styles.card, { opacity: fadeAnim }]}
-          >
-            <Text style={styles.cardTitle}>REWARDS EARNED</Text>
-
-            {/* XP gained */}
-            <View style={styles.xpGainRow}>
-              <View style={styles.xpGainLeft}>
-                <Text style={styles.xpGainLabel}>Experience</Text>
-                <Text style={styles.xpGainSub}>Level {avatar.level}</Text>
-              </View>
-              <Text style={styles.xpGainVal}>+{battle.enemy.xpReward} XP</Text>
-            </View>
-
-            {/* XP progress bar */}
-            <View style={styles.xpTrack}>
-              <Animated.View
-                style={[
-                  styles.xpFill,
-                  { width: xpBarWidth as any },
-                ]}
-              />
-            </View>
-
-            {/* Stat boosts */}
-            {Object.entries(statBoosts).map(([stat, boost]) => (
-              <View key={stat} style={styles.boostRow}>
-                <Text style={styles.boostStat}>
-                  {stat.toUpperCase()}
-                </Text>
-                <Text style={styles.boostVal}>+{boost}</Text>
-                <View style={[
-                  styles.boostBar,
-                  { width: `${Math.min((boost ?? 0) * 5, 100)}%` as any },
-                ]} />
-              </View>
-            ))}
-
-            {/* Lore unlock */}
-            <View style={styles.lorePill}>
-              <Text style={styles.loreEmoji}>📜</Text>
-              <Text style={styles.loreText}>{battle.enemy.lore}</Text>
-            </View>
-          </Animated.View>
-        )}
-
-        {/* ── Defeat encouragement ── */}
-        {!isVictory && (
-          <Animated.View style={[styles.card, { opacity: fadeAnim }]}>
-            <Text style={styles.cardTitle}>BATTLE ANALYSIS</Text>
-            <Text style={styles.encourageText}>
-              You completed {repsCompleted} of {repsRequired} reps.
-              {repsCompleted >= repsRequired * 0.7
-                ? " You were so close! Train harder and try again."
-                : " Keep pushing your limits. Each rep makes you stronger."}
+          <View style={styles.dDialogBox}>
+            <View style={styles.dDialogDecoration} />
+            <Text style={styles.dDialogText}>
+              You only did <Text style={{ color: AuthColors.crimson, fontFamily: Fonts.pixel, fontSize: 16 }}>{repsCompleted} / {repsRequired}</Text> reps.
             </Text>
-            <View style={styles.tipBox}>
-              <Text style={styles.tipTitle}>TRAINING TIP</Text>
-              <Text style={styles.tipText}>
-                {battle.enemy.exercise === 'push_up'
-                  ? "Keep your core tight and lower your chest all the way to the ground."
-                  : battle.enemy.exercise === 'squat'
-                  ? "Drive through your heels and keep your chest proud throughout the movement."
-                  : battle.enemy.exercise === 'sit_up'
-                  ? "Exhale as you crunch up. Controlled movement beats momentum."
-                  : "Full hang at the bottom, chin clears the bar at the top. No kipping."}
-              </Text>
-            </View>
-          </Animated.View>
-        )}
+            <View style={styles.dDialogDivider} />
+            <Text style={styles.dDialogSub}>Rest up at the inn and try again!</Text>
+          </View>
 
-        {/* ── Action buttons ── */}
-        <Animated.View style={[styles.buttonGroup, { opacity: fadeAnim }]}>
-          {isVictory ? (
-            <TouchableOpacity style={styles.primaryBtn} onPress={handleContinue}>
-              <Text style={styles.primaryBtnText}>RETURN TO QUEST MAP</Text>
-            </TouchableOpacity>
-          ) : (
-            <>
-              <TouchableOpacity style={styles.primaryBtn} onPress={handleRetry}>
-                <Text style={styles.primaryBtnText}>CHALLENGE AGAIN</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryBtn} onPress={handleContinue}>
-                <Text style={styles.secondaryBtnText}>QUEST MAP</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </Animated.View>
-      </ScrollView>
+          <TouchableOpacity style={styles.dBtnContainer} activeOpacity={0.8} onPress={handleContinue}>
+            <View style={styles.dBtnShadow} />
+            <View style={styles.dBtnInner}>
+              <Text style={styles.dBtnText}>RETURN TO TOWN</Text>
+            </View>
+          </TouchableOpacity>
+        </ScrollView>
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.bgVoid,
-  },
-  scroll: {
-    padding: Spacing.xl,
-    paddingTop: 60,
-    paddingBottom: 50,
-    gap: 16,
-  },
-
-  // Banner
-  banner: {
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  bannerText: {
-    fontFamily: Fonts.display,
-    fontSize: 48,
-    letterSpacing: 6,
-  },
-  victoryText: {
-    color: Colors.hpGreen,
-    textShadowColor: Colors.hpGreen,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 20,
-  },
-  defeatText: {
-    color: Colors.crimson,
-    textShadowColor: Colors.crimson,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 20,
-  },
-  bannerSub: {
-    fontFamily: Fonts.ui,
-    fontSize: 15,
-    color: Colors.textMuted,
-    marginTop: 6,
-    letterSpacing: 1,
-  },
-
-  // Avatar
-  avatarBlock: {
-    alignItems: 'center',
-    marginVertical: 8,
-  },
-  levelUpTag: {
-    fontFamily: Fonts.display,
-    fontSize: 13,
-    color: Colors.gold,
-    letterSpacing: 2,
-    marginTop: 10,
-    backgroundColor: 'rgba(200,146,42,0.1)',
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.borderFaint,
-  },
-
-  // Card
-  card: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.lg,
-    padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.borderFaint,
-  },
-  cardTitle: {
-    fontFamily: Fonts.display,
-    fontSize: 10,
-    color: Colors.gold,
-    letterSpacing: 3,
-    marginBottom: Spacing.md,
-  },
-
-  // Rep summary
-  repSummaryRow: {
+  topAppBar: {
     flexDirection: 'row',
-    marginBottom: 12,
-  },
-  repSummaryItem: {
-    flex: 1,
     alignItems: 'center',
-  },
-  repSummaryDivider: {
-    width: 1,
-    backgroundColor: Colors.borderFaint,
-  },
-  repSummaryVal: {
-    fontFamily: Fonts.display,
-    fontSize: 24,
-    color: Colors.textHero,
-  },
-  repSummaryLabel: {
-    fontFamily: Fonts.mono,
-    fontSize: 9,
-    color: Colors.textMuted,
-    letterSpacing: 0.5,
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  repTrack: {
-    height: 6,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: Radius.full,
-    overflow: 'hidden',
-  },
-  repFill: {
-    height: '100%',
-    borderRadius: Radius.full,
-  },
-
-  // XP gain
-  xpGainRow: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+    paddingHorizontal: 16,
+    paddingTop: 48,
+    paddingBottom: 16,
+    backgroundColor: AuthColors.bg,
+    borderBottomWidth: 3,
+    borderColor: AuthColors.navy,
+    elevation: 4,
+    shadowColor: AuthColors.navy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    zIndex: 50,
   },
-  xpGainLeft: {},
-  xpGainLabel: {
-    fontFamily: Fonts.ui,
-    fontSize: 14,
-    color: Colors.textPrimary,
-  },
-  xpGainSub: {
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    color: Colors.textMuted,
-  },
-  xpGainVal: {
-    fontFamily: Fonts.display,
-    fontSize: 20,
-    color: Colors.xpBlue,
-  },
-  xpTrack: {
-    height: 8,
-    backgroundColor: 'rgba(68,136,255,0.1)',
-    borderRadius: Radius.full,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(68,136,255,0.15)',
-    marginBottom: 16,
-  },
-  xpFill: {
-    height: '100%',
-    backgroundColor: Colors.xpBlue,
-    borderRadius: Radius.full,
-  },
-
-  // Stat boosts
-  boostRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  boostStat: {
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    color: Colors.textMuted,
-    letterSpacing: 1,
-    width: 36,
-  },
-  boostVal: {
-    fontFamily: Fonts.display,
-    fontSize: 14,
-    color: Colors.teal,
-    width: 28,
-  },
-  boostBar: {
-    height: 4,
-    backgroundColor: Colors.teal,
-    borderRadius: Radius.full,
-    opacity: 0.5,
-  },
-
-  // Lore
-  lorePill: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.borderFaint,
-  },
-  loreEmoji: { fontSize: 14 },
-  loreText: {
-    fontFamily: Fonts.ui,
-    fontSize: 13,
-    color: Colors.textMuted,
-    flex: 1,
-    lineHeight: 18,
-    fontStyle: 'italic',
-  },
-
-  // Defeat
-  encourageText: {
-    fontFamily: Fonts.ui,
-    fontSize: 15,
-    color: Colors.textPrimary,
-    lineHeight: 22,
-    marginBottom: 16,
-  },
-  tipBox: {
-    backgroundColor: 'rgba(29,184,160,0.07)',
-    borderRadius: Radius.md,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(29,184,160,0.2)',
-  },
-  tipTitle: {
-    fontFamily: Fonts.mono,
-    fontSize: 9,
-    color: Colors.teal,
+  topAppBarText: {
+    fontFamily: Fonts.vt323,
+    textTransform: 'uppercase',
     letterSpacing: 2,
+    fontSize: 18,
+    color: AuthColors.crimson,
+  },
+  topBattleMode: {
+    fontFamily: Fonts.pixel,
+    fontSize: 10,
+    color: AuthColors.crimson,
+  },
+  mainWrap: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    paddingTop: 80,
+    paddingBottom: 80,
+  },
+
+  // VICTORY
+  vScreen: { flex: 1, backgroundColor: '#c6e8f8' },
+  vTitle: {
+    fontFamily: Fonts.pixel,
+    fontSize: 40,
+    color: '#ffdf96',
+    textShadowColor: AuthColors.navy,
+    textShadowOffset: { width: 3, height: 3 },
+    textShadowRadius: 0,
+    marginBottom: 40,
+  },
+  vAvatarBlock: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  vAvatarImage: {
+    width: 160,
+    height: 160,
+  },
+  vAvatarShadow: {
+    width: 120,
+    height: 18,
+    backgroundColor: 'rgba(18,52,65,0.15)',
+    borderRadius: 100,
+    marginTop: 12,
+  },
+  vRewardCard: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: AuthColors.white,
+    borderWidth: 3,
+    borderColor: '#123441',
+    shadowColor: '#123441',
+    shadowOffset: { width: 8, height: 8 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    padding: 24,
+    alignItems: 'center',
+  },
+  vRewardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    width: '100%',
+    borderBottomWidth: 3,
+    borderColor: '#c6e8f8',
+    paddingBottom: 16,
+    marginBottom: 16,
+  },
+  vRewardSub: {
+    fontFamily: Fonts.pixel,
+    fontSize: 10,
+    color: '#6d797d',
     marginBottom: 4,
   },
-  tipText: {
-    fontFamily: Fonts.ui,
-    fontSize: 13,
-    color: Colors.textMuted,
-    lineHeight: 18,
+  vRewardTitle: {
+    fontFamily: Fonts.vt323,
+    fontSize: 24,
+    color: '#123441',
+  },
+  vRewardContent: {
+    width: '100%',
+    alignItems: 'center',
+    backgroundColor: '#e6f6ff',
+    borderWidth: 3,
+    borderStyle: 'dashed',
+    borderColor: '#bcc9cc',
+    padding: 16,
+    marginBottom: 20,
+  },
+  vChestImage: {
+    width: 96,
+    height: 96,
+    marginBottom: 8,
+  },
+  vRewardXp: {
+    fontFamily: Fonts.pixel,
+    fontSize: 24,
+    color: AuthColors.gold,
+  },
+  vRewardLoot: {
+    fontFamily: Fonts.vt323,
+    fontSize: 18,
+    color: '#006A60',
+    marginTop: 4,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  vBtn: {
+    width: '100%',
+    height: 56,
+    backgroundColor: '#006a60',
+    borderWidth: 3,
+    borderColor: '#123441',
+    shadowColor: '#123441',
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  vBtnText: {
+    fontFamily: Fonts.pixel,
+    fontSize: 12,
+    color: AuthColors.white,
   },
 
-  // Buttons
-  buttonGroup: {
-    gap: 10,
-    marginTop: 8,
+  // DEFEAT
+  dScreen: { flex: 1, backgroundColor: '#8D99AE' },
+  dTitle: {
+    fontFamily: Fonts.pixel,
+    fontSize: 32,
+    color: '#123441',
+    textShadowColor: AuthColors.white,
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 0,
+    marginBottom: 48,
   },
-  primaryBtn: {
-    backgroundColor: Colors.teal,
-    borderRadius: Radius.full,
+  dAvatarBlock: {
+    width: 192,
+    height: 192,
+    backgroundColor: '#e6f6ff',
+    borderWidth: 3,
+    borderColor: '#123441',
+    shadowColor: '#123441',
+    shadowOffset: { width: 6, height: 6 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
+  },
+  dAvatarImage: {
+    width: 128,
+    height: 128,
+  },
+  dDialogBox: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: AuthColors.white,
+    borderWidth: 3,
+    borderColor: '#123441',
+    shadowColor: '#123441',
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    padding: 24,
+    position: 'relative',
+    marginBottom: 40,
+  },
+  dDialogDecoration: {
+    position: 'absolute',
+    top: -8,
+    left: -8,
+    width: 16,
+    height: 16,
+    backgroundColor: AuthColors.crimson,
+    borderWidth: 2,
+    borderColor: '#123441',
+  },
+  dDialogText: {
+    fontFamily: Fonts.vt323,
+    fontSize: 24,
+    color: '#123441',
+    textAlign: 'center',
+  },
+  dDialogDivider: {
+    height: 2,
+    backgroundColor: '#123441',
+    opacity: 0.1,
+    width: '100%',
+    marginVertical: 16,
+  },
+  dDialogSub: {
+    fontFamily: Fonts.vt323,
+    fontSize: 20,
+    color: '#3d494c',
+    textAlign: 'center',
+  },
+  dBtnContainer: {
+    position: 'relative',
+  },
+  dBtnShadow: {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: '#123441',
+    transform: [{ translateX: 4 }, { translateY: 4 }],
+  },
+  dBtnInner: {
+    backgroundColor: AuthColors.white,
+    borderWidth: 3,
+    borderColor: '#123441',
+    paddingHorizontal: 32,
     paddingVertical: 16,
-    alignItems: 'center',
   },
-  primaryBtnText: {
-    fontFamily: Fonts.display,
+  dBtnText: {
+    fontFamily: Fonts.pixel,
     fontSize: 14,
-    color: Colors.bgVoid,
-    letterSpacing: 2,
-  },
-  secondaryBtn: {
-    borderWidth: 1,
-    borderColor: Colors.borderFaint,
-    borderRadius: Radius.full,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  secondaryBtnText: {
-    fontFamily: Fonts.mono,
-    fontSize: 12,
-    color: Colors.textMuted,
-    letterSpacing: 2,
+    color: '#123441',
   },
 });

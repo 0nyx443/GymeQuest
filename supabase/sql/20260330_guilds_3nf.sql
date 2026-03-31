@@ -387,3 +387,19 @@ $$;
 revoke all on function public.join_guild(text) from public;
 grant execute on function public.join_guild(text) to authenticated;
 
+
+create or replace function public.leave_guild(p_guild_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.guild_memberships
+  set status = 'left', left_at = now()
+  where user_id = auth.uid() and guild_id = p_guild_id and status = 'active';
+end;
+$$;
+
+revoke all on function public.leave_guild(uuid) from public;
+grant execute on function public.leave_guild(uuid) to authenticated;

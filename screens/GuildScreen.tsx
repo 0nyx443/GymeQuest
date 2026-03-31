@@ -1,3 +1,4 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -132,6 +133,10 @@ export default function GuildScreen() {
   const [joinNameInput, setJoinNameInput] = useState('');
   const [joinLoading, setJoinLoading] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
+  
+  const [availableGuilds, setAvailableGuilds] = useState<any[]>([]);
+  const [isBrowseMode, setIsBrowseMode] = useState(false);
+  const [loadingGuilds, setLoadingGuilds] = useState(false);
 
   const loadGuildContext = useCallback(async () => {
     setScreenError(null);
@@ -187,7 +192,7 @@ export default function GuildScreen() {
         .single(),
       supabase
         .from('guild_memberships')
-        .select('user_id, role, joined_at, profiles:user_id(name, level)')
+        .select('user_id, role, joined_at, profiles(name, level)')
         .eq('guild_id', guildId)
         .eq('status', 'active')
         .order('joined_at', { ascending: true }),
@@ -291,6 +296,15 @@ export default function GuildScreen() {
     setCreateLoading(false);
   }, [guildNameInput, loadGuildContext]);
 
+  const handleFetchGuilds = useCallback(async () => {
+    setLoadingGuilds(true);
+    const { data, error } = await supabase.from("guilds").select("id, name, level, exp, max_members").order("level", { ascending: false }).limit(20);
+    if (!error && data) {
+      setAvailableGuilds(data);
+    }
+    setLoadingGuilds(false);
+  }, []);
+
   const handleJoinGuild = useCallback(async () => {
     const cleanName = sanitizeGuildName(joinNameInput);
     if (!cleanName) {
@@ -316,6 +330,16 @@ export default function GuildScreen() {
     await loadGuildContext();
     setJoinLoading(false);
   }, [joinNameInput, loadGuildContext]);
+
+  const handleLeaveGuild = useCallback(async () => {
+    if (!guild) return;
+    try {
+      await supabase.rpc("leave_guild", { p_guild_id: guild.id });
+      await loadGuildContext();
+    } catch (err) {
+      setScreenError("Failed to leave guild.");
+    }
+  }, [guild, loadGuildContext]);
 
   const guildProgress = useMemo(
     () => getGuildProgress(guild?.level ?? 1, guild?.exp ?? 0),
@@ -408,6 +432,43 @@ export default function GuildScreen() {
             </View>
           ) : null}
 
+          {!isCreateMode && !isJoinMode && (
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() => {
+                setIsBrowseMode(!isBrowseMode);
+                if (!isBrowseMode) handleFetchGuilds();
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.primaryButtonText}>{isBrowseMode ? "CLOSE BROWSER" : "BROWSE GUILDS"}</Text>
+            </TouchableOpacity>
+          )}
+
+          {isBrowseMode && (
+            <View style={styles.createCard}>
+              <Text style={styles.createLabel}>Available Guilds</Text>
+              {loadingGuilds ? (
+                <ActivityIndicator size="small" color={AuthColors.navy} />
+              ) : availableGuilds.length === 0 ? (
+                <Text style={styles.helpText}>No guilds available.</Text>
+              ) : (
+                availableGuilds.map((g) => (
+                  <TouchableOpacity key={g.id} style={styles.memberCard} onPress={() => {
+                    setJoinNameInput(g.name);
+                    setIsJoinMode(true);
+                    setIsBrowseMode(false);
+                  }}>
+                    <View style={styles.memberInfo}>
+                      <Text style={styles.memberName}>{g.name} (Lv {g.level})</Text>
+                      <Text style={styles.memberStatusText}>{g.members_count || 0}/{g.max_members} Members</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+          )}
+
           {!isCreateMode && (
             <TouchableOpacity
               style={styles.primaryButton}
@@ -495,6 +556,16 @@ export default function GuildScreen() {
           </View>
 
           <Text style={styles.guildName}>{guild.name}</Text>
+
+          <TouchableOpacity
+            style={[styles.secondaryButton, { marginTop: 16, backgroundColor: AuthColors.crimson, borderColor: AuthColors.crimson }]}
+            onPress={() => {
+              handleLeaveGuild();
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.secondaryButtonText, { color: AuthColors.white }]}>LEAVE GUILD</Text>
+          </TouchableOpacity>
 
           <View style={styles.guildStatsRow}>
             <View style={styles.statPill}>

@@ -162,6 +162,8 @@ export default function CombatScreen() {
           mediaPlaybackRequiresUserAction={false}
           allowFileAccess={true}
           allowUniversalAccessFromFileURLs={true}
+          mediaCapturePermissionGrantType="grant"
+          onMessage={(event) => processPoseData(event.nativeEvent.data)}
           style={{ flex: 1, backgroundColor: '#000' }}
         />
         {/* CRT Scanline Overlay from Stitch (CSS gradient recreation) */}

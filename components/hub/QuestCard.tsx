@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { AuthColors, Fonts } from '@/constants/theme';
+import { EXERCISES } from '@/constants/game';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface QuestCardProps {
@@ -10,6 +11,7 @@ interface QuestCardProps {
         lore: string;
         hp: number;
         repsRequired: number;
+        exercise: string;
         xpReward: number;
         image?: any;
         color?: string;
@@ -67,7 +69,9 @@ export function QuestCard({ enemy, isLocked, onPress }: QuestCardProps) {
                     <View style={styles.footerRow}>
                         <View style={styles.statsRow}>
                             <View style={styles.badge}>
-                                <Text style={styles.badgeText}>{enemy.repsRequired}</Text>
+                                <Text style={styles.badgeText}>
+                                    {enemy.repsRequired} {(EXERCISES[enemy.exercise as any]?.label || enemy.exercise).toUpperCase()}S
+                                </Text>
                             </View>
                             <View style={styles.xpBox}>
                                 <MaterialCommunityIcons name="star-four-points" size={16} color={AuthColors.gold} />
@@ -170,15 +174,15 @@ const styles = StyleSheet.create({
     },
     badge: {
         backgroundColor: AuthColors.navy,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        minWidth: 40,
+        paddingHorizontal: 12,
+        paddingVertical: 4,
         alignItems: 'center',
     },
     badgeText: {
         fontFamily: Fonts.vt323,
-        fontSize: 14,
+        fontSize: 16,
         color: '#FFFFFF',
+        letterSpacing: 0.5,
     },
     xpBox: {
         flexDirection: 'row',

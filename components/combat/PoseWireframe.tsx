@@ -13,7 +13,13 @@
 import React from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
 import Svg, { Line, Circle, G, Text as SvgText } from 'react-native-svg';
-import { Landmark } from '@/hooks/usePoseEngine';
+// import { Landmark } from '@/hooks/usePoseEngine';
+export interface Landmark {
+  x: number;
+  y: number;
+  z?: number;
+  visibility?: number;
+}
 import { Colors } from '@/constants/theme';
 import { POSE_LANDMARKS } from '@/constants/game';
 

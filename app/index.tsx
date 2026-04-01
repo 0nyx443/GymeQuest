@@ -1,39 +1,33 @@
-/**
- * app/index.tsx — Home / Dashboard route
- *
- * Wraps DashboardScreen inside a persistent bottom navigation bar
- * so players can access the Quest Map, Stats, and Profile tabs.
- */
 import React, { useState, useEffect } from 'react';
-import {
-  View, Text, TouchableOpacity, StyleSheet,
-} from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import DashboardScreen from '@/screens/DashboardScreen';
+import QuestScreen from '@/screens/QuestScreen';
+import GuildScreen from '@/screens/GuildScreen';
+import ProfileScreen from '@/screens/ProfileScreen';
 import AuthScreen from '@/screens/AuthScreen';
 import RegisterScreen from '@/screens/RegisterScreen';
 import TutorialScreen from '@/screens/TutorialScreen';
-import { Colors, Fonts, Radius } from '@/constants/theme';
+import { AuthColors } from '@/constants/theme';
 import { supabase } from '@/utils/supabase';
 import { Session } from '@supabase/supabase-js';
 import { useGameStore } from '@/store/gameStore';
+import { ENEMIES } from '@/constants/game';
 
-type Tab = 'home' | 'quests' | 'stats' | 'profile';
+import { BottomNav } from '@/components/hub/BottomNav';
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'home',    label: 'Home',    icon: '⚔' },
-  { id: 'quests',  label: 'Quests',  icon: '🗺' },
-  { id: 'stats',   label: 'Stats',   icon: '📊' },
-  { id: 'profile', label: 'Profile', icon: '👤' },
-];
+type Tab = 'home' | 'quests' | 'guild' | 'profile';
 
 export default function HomeRoute() {
+  const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const loadProfile = useGameStore((state) => state.loadProfile);
   const profileNeedsName = useGameStore((state) => state.profileNeedsName);
   const showTutorial = useGameStore((state) => state.showTutorial);
   const isProfileLoaded = useGameStore((state) => state.isProfileLoaded);
+  const startBattle = useGameStore((s) => s.startBattle);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -52,12 +46,19 @@ export default function HomeRoute() {
     });
   }, []);
 
+  const handleBattlePress = () => {
+    if (ENEMIES.length > 0) {
+      startBattle(ENEMIES[0]);
+      router.push('/combat');
+    }
+  };
+
   if (!session) {
     return <AuthScreen />;
   }
 
   if (!isProfileLoaded) {
-    return <View style={{ flex: 1, backgroundColor: '#F3FAFF' }} />;
+    return <View style={{ flex: 1, backgroundColor: AuthColors.bg }} />;
   }
 
   if (profileNeedsName) {
@@ -69,34 +70,21 @@ export default function HomeRoute() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <View style={{ flex: 1 }}>
-        {/* Only dashboard is fully implemented in this prototype */}
-        <DashboardScreen />
+    <SafeAreaView style={styles.container} edges={['bottom', 'top']}>
+
+
+      <View style={styles.content}>
+        {activeTab === 'home' && <DashboardScreen />}
+        {activeTab === 'quests' && <QuestScreen />}
+        {activeTab === 'guild' && <GuildScreen />}
+        {activeTab === 'profile' && <ProfileScreen />}
       </View>
 
-      {/* Bottom nav */}
-      <View style={styles.navBar}>
-        {TABS.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <TouchableOpacity
-              key={tab.id}
-              style={styles.navItem}
-              onPress={() => setActiveTab(tab.id)}
-              activeOpacity={0.7}
-            >
-              {isActive && <View style={styles.navActiveIndicator} />}
-              <Text style={[styles.navIcon, isActive && styles.navIconActive]}>
-                {tab.icon}
-              </Text>
-              <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
-                {tab.label.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <BottomNav
+        activeTab={activeTab}
+        onTabPress={setActiveTab}
+        onBattlePress={handleBattlePress}
+      />
     </SafeAreaView>
   );
 }
@@ -104,45 +92,10 @@ export default function HomeRoute() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.bgDeep,
+    backgroundColor: AuthColors.bg,
   },
-  navBar: {
-    flexDirection: 'row',
-    backgroundColor: Colors.bgPanel,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderFaint,
-    paddingBottom: 4,
-  },
-  navItem: {
+  content: {
     flex: 1,
-    alignItems: 'center',
-    paddingTop: 10,
-    paddingBottom: 6,
-    position: 'relative',
-  },
-  navActiveIndicator: {
-    position: 'absolute',
-    top: 0,
-    width: 32,
-    height: 2,
-    backgroundColor: Colors.gold,
-    borderRadius: Radius.full,
-  },
-  navIcon: {
-    fontSize: 18,
-    marginBottom: 2,
-    opacity: 0.4,
-  },
-  navIconActive: {
-    opacity: 1,
-  },
-  navLabel: {
-    fontFamily: Fonts.mono,
-    fontSize: 8,
-    color: Colors.textMuted,
-    letterSpacing: 1,
-  },
-  navLabelActive: {
-    color: Colors.gold,
+    paddingBottom: 64, // Leave space so content isn't under the BottomNav
   },
 });

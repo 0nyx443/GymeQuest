@@ -18,7 +18,7 @@ export interface AvatarState {
   totalReps: number;
   totalBattles: number;
   victories: number;
-  age?: number;
+  birthday?: string;
   sex?: string;
   height_cm?: number;
   weight_kg?: number;
@@ -231,7 +231,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         totalReps: data.total_reps ?? 0,
         totalBattles: data.battles ?? 0,
         victories: data.victories ?? 0,
-        age: data.age,
+        birthday: data.birthday,
         sex: data.sex,
         height_cm: data.height_cm,
         weight_kg: data.weight_kg,
@@ -258,7 +258,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       battles: state.totalBattles,
       victories: state.victories,
       total_reps: state.totalReps,
-      age: state.age,
+      birthday: state.birthday,
       sex: state.sex,
       height_cm: state.height_cm,
       weight_kg: state.weight_kg,

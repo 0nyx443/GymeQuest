@@ -9,6 +9,19 @@ export function ProfileLicense() {
 
     const getPercent = (val: number): DimensionValue => `${Math.min((val / 100) * 100, 100)}%`;
 
+    const getAge = (birthdayStr?: string) => {
+        if (!birthdayStr) return null;
+        const birthDate = new Date(birthdayStr);
+        if (isNaN(birthDate.getTime())) return null;
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        return age;
+    };
+
     return (
         <View style={styles.container}>
             <View style={styles.header}>
@@ -55,8 +68,12 @@ export function ProfileLicense() {
                 </View>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginTop: 8 }}>
                     <View style={{ width: "48%", marginBottom: 12 }}>
-                        <Text style={styles.infoLabel}>AGE</Text>
-                        <Text style={styles.infoName}>{avatar.age || "?"}</Text>
+                        <Text style={styles.infoLabel}>BIRTHDAY (AGE)</Text>
+                        <Text style={styles.infoName}>
+                            {avatar.birthday 
+                                ? `${avatar.birthday} (${getAge(avatar.birthday) ?? '?'} YRS)` 
+                                : "?"}
+                        </Text>
                     </View>
                     <View style={{ width: "48%", marginBottom: 12 }}>
                         <Text style={styles.infoLabel}>SEX</Text>

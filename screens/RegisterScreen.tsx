@@ -236,7 +236,7 @@ export default function RegisterScreen({ onBack }: Props) {
   const [password, setPassword] = useState('');
 
   // Biometrics
-  const [age,        setAge]        = useState('');
+  const [birthday,   setBirthday]   = useState('');
   const [sex,        setSex]        = useState<'male' | 'female'>('male');
   const [height,     setHeight]     = useState('');
   const [heightUnit, setHeightUnit] = useState<0 | 1>(0); // 0=CM, 1=IN
@@ -308,7 +308,7 @@ export default function RegisterScreen({ onBack }: Props) {
       battles: 0,
       victories: 0,
       total_reps: 0,
-      age: parseInt(age) || null,
+      birthday: birthday.trim() || null,
       sex: sex,
       height_cm: heightCm || null,
       weight_kg: weightKg || null,
@@ -323,7 +323,7 @@ export default function RegisterScreen({ onBack }: Props) {
 
     setAvatar({
       name: heroName.trim(),
-      age: parseInt(age) || undefined,
+      birthday: birthday.trim() || undefined,
       sex: sex,
       height_cm: heightCm || undefined,
       weight_kg: weightKg || undefined,
@@ -407,13 +407,12 @@ export default function RegisterScreen({ onBack }: Props) {
           <SectionHeader title="BIOMETRIC CALIBRATION" iconColor={AC.crimson} />
           <Text style={rs.calibNote}>THIS DATA CALIBRATES YOUR QUEST DIFFICULTY</Text>
 
-          <FL text="[ AGE ]" />
+          <FL text="[ BIRTHDAY ]" />
           <PI
-            placeholder="0"
-            value={age}
-            onChangeText={setAge}
-            keyboardType="numeric"
-            maxLength={3}
+            placeholder="YYYY-MM-DD"
+            value={birthday}
+            onChangeText={setBirthday}
+            maxLength={10}
           />
 
           <FL text="[ SEX ]" />

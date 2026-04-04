@@ -3,9 +3,13 @@ import { View, StyleSheet, Image } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing, withSequence } from 'react-native-reanimated';
 import { AuthColors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { useGameStore } from '@/store/gameStore';
 
 export function AvatarStage() {
     const translateY = useSharedValue(0);
+    
+    // 1. Fetch the player's current level from the store
+    const avatarLevel = useGameStore((state) => state.avatar.level);
 
     useEffect(() => {
         // A bouncy pixel-like step animation
@@ -25,6 +29,15 @@ export function AvatarStage() {
         };
     });
 
+    // 2. Helper function to determine the correct image based on level
+    const getAvatarImage = (level: number) => {
+        // IMPORTANT: Change these filenames to match exactly what is in your screenshot!
+        if (level >= 50) return require('@/assets/images/legend.png');
+        if (level >= 25) return require('@/assets/images/champion.png');
+        if (level >= 10) return require('@/assets/images/challenger.png');
+        return require('@/assets/images/rookie.png');
+    };
+
     return (
         <View style={styles.container}>
             {/* Decorative Clouds */}
@@ -34,8 +47,9 @@ export function AvatarStage() {
             </View>
 
             <Animated.View style={[styles.chibiWrapper, animatedStyle]}>
+                {/* 3. Swap the static require for our dynamic function */}
                 <Image
-                    source={require('@/assets/images/chibi.png')}
+                    source={getAvatarImage(avatarLevel)}
                     style={styles.chibiImage}
                     resizeMode="contain"
                 />

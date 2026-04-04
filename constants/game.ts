@@ -78,6 +78,7 @@ export interface Enemy {
   difficulty: Difficulty;
   lore: string;
   color: string;
+  image?: any;              // Added to support dynamic images
 }
 
 export const ENEMIES: Enemy[] = [
@@ -94,6 +95,7 @@ export const ENEMIES: Enemy[] = [
     difficulty: 1,
     lore: 'A wiry creature haunting the Thornwood. Swift but fragile.',
     color: '#3D7A30',
+    image: require('@/assets/images/goblin_scout.png'),
   },
   {
     id: 'iron_sentinel',
@@ -108,6 +110,7 @@ export const ENEMIES: Enemy[] = [
     difficulty: 2,
     lore: 'An ancient automaton guarding the Mountain Pass. Immovable and relentless.',
     color: '#7A7A8A',
+    image: require('@/assets/images/iron_sentinel.png'),
   },
   {
     id: 'shadow_monk',
@@ -122,6 +125,7 @@ export const ENEMIES: Enemy[] = [
     difficulty: 3,
     lore: 'A former warrior consumed by darkness. Deadly fast.',
     color: '#5533AA',
+    image: require('@/assets/images/shadow_monk.png'),
   },
   {
     id: 'dragon_wyrmling',
@@ -136,6 +140,7 @@ export const ENEMIES: Enemy[] = [
     difficulty: 4,
     lore: 'Young but catastrophically powerful. Its breath melts stone.',
     color: '#C0282A',
+    image: require('@/assets/images/dragon_wyrmling.png'),
   },
   {
     id: 'ancient_colossus',
@@ -150,15 +155,26 @@ export const ENEMIES: Enemy[] = [
     difficulty: 5,
     lore: 'A primordial titan. The mountains tremble at its footsteps.',
     color: '#8B5E00',
+    image: require('@/assets/images/ancient_colossus.png'),
   },
 ];
 
-// XP required to reach each level (index = level)
-export const XP_TABLE = [
-  0, 0, 150, 400, 750, 1200, 1800, 2600, 3600, 5000, 7000
-];
+// ── NEW: Level Cap increased from 10 to 50 ──
+export const MAX_LEVEL = 50;
 
-export const MAX_LEVEL = 10;
+// ── NEW: Dynamic XP Table Generator ──
+// Generates an array of XP requirements for all 50 levels
+export const XP_TABLE = Array.from({ length: MAX_LEVEL + 1 }, (_, level) => {
+  // Levels 0 and 1 require 0 XP
+  if (level <= 1) return 0;
+  
+  // The original hand-crafted curve for the first 10 levels
+  const earlyLevels = [0, 0, 150, 400, 750, 1200, 1800, 2600, 3600, 5000, 7000];
+  if (level <= 10) return earlyLevels[level];
+
+  // For levels 11 through 50, scale the XP requirement automatically using a 15% increase per level
+  return Math.floor(7000 * Math.pow(1.15, level - 10)); 
+});
 
 export const POSE_LANDMARKS = {
   NOSE: 0,

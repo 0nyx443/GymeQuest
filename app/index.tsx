@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import DashboardScreen from '@/screens/DashboardScreen';
@@ -22,6 +22,7 @@ type Tab = 'home' | 'quests' | 'guild' | 'profile';
 export default function HomeRoute() {
   const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
+  const [isSessionLoading, setIsSessionLoading] = useState(true); // <-- NEW: Added to prevent the flicker
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const loadProfile = useGameStore((state) => state.loadProfile);
   const profileNeedsName = useGameStore((state) => state.profileNeedsName);
@@ -30,12 +31,17 @@ export default function HomeRoute() {
   const startBattle = useGameStore((s) => s.startBattle);
 
   useEffect(() => {
+    // 1. Initial Session Check
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      setIsSessionLoading(false); // We now know the true session state
     });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
+    // 2. Auth State Listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      setIsSessionLoading(false);
+      
       if (session) {
         useGameStore.setState({ isProfileLoaded: false });
         loadProfile();
@@ -44,6 +50,8 @@ export default function HomeRoute() {
         useGameStore.getState().resetAvatar();
       }
     });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleBattlePress = () => {
@@ -52,6 +60,15 @@ export default function HomeRoute() {
       router.push('/combat');
     }
   };
+
+  // ── PREVENT FLICKER: Wait for Supabase to confirm session status ──
+  if (isSessionLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={AuthColors.navy} />
+      </View>
+    );
+  }
 
   if (!session) {
     return <AuthScreen />;
@@ -71,8 +88,6 @@ export default function HomeRoute() {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'top']}>
-
-
       <View style={styles.content}>
         {activeTab === 'home' && <DashboardScreen />}
         {activeTab === 'quests' && <QuestScreen />}
@@ -98,4 +113,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingBottom: 64, // Leave space so content isn't under the BottomNav
   },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: AuthColors.bg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  }
 });

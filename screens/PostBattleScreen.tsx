@@ -15,6 +15,9 @@ export default function PostBattleScreen() {
   const router = useRouter();
   const battle = useGameStore((s) => s.battle);
   const resetBattle = useGameStore((s) => s.resetBattle);
+  
+  // 1. Get the player's current level
+  const avatarLevel = useGameStore((s) => s.avatar.level);
 
   const isVictory = battle?.phase === 'victory';
 
@@ -40,6 +43,23 @@ export default function PostBattleScreen() {
     router.replace('/');
   };
 
+  // 2. Helper for Defeated Images (── NOW ACTIVE! ──)
+  const getDefeatedImage = (level: number) => {
+    // We are now pointing directly to the generated defeated files from your assets folder!
+    if (level >= 50) return require('@/assets/images/legend_defeated.png');
+    if (level >= 25) return require('@/assets/images/champion_defeated.png');
+    if (level >= 10) return require('@/assets/images/challenger_defeated.png');
+    return require('@/assets/images/rookie_defeated.png');
+  };
+
+  // 3. Helper for Victory Images (Uses the standard standing poses)
+  const getVictoryImage = (level: number) => {
+    if (level >= 50) return require('@/assets/images/legend.png');
+    if (level >= 25) return require('@/assets/images/champion.png');
+    if (level >= 10) return require('@/assets/images/challenger.png');
+    return require('@/assets/images/rookie.png');
+  };
+
   if (!battle) {
     router.replace('/');
     return null;
@@ -60,8 +80,9 @@ export default function PostBattleScreen() {
 
             <View style={styles.vAvatarBlock}>
               <Image
-                source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB9nq2aQ1p27r1iq1uau_JksTlG1KktuA64yKAO8ARKXPtxB8QWLL2OMT_5PTRWG0i25EMAT_XUzOn4AGPkhDqhA-LRQf5s0XglzG73upgBkhNTS_w7kj8FR4xqKFWdJAmhIOYlaKwH9s1jvFsEHjEWmD8wmr57XsoiF_C3AyQ5NCzqONww7RY1PLtHoC16M0yF5AesgUm7CguIYJcaPdcXu2iNA1Rocf6Z8MpQ4htt4KZD8vdo4QOkbf3GBn-r2MPHY71jOpgvL9-W' }}
+                source={getVictoryImage(avatarLevel)}
                 style={styles.vAvatarImage}
+                resizeMode="contain"
               />
               <View style={styles.vAvatarShadow} />
             </View>
@@ -76,10 +97,6 @@ export default function PostBattleScreen() {
               </View>
 
               <View style={styles.vRewardContent}>
-                <Image
-                  source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCnSzZuwSZIcbUanXq6gCxThPFUU0Y997KrTGisz57YQNnDx4s_gE2D63A2ht2qEp4kKiS9QzbvjLE1I7tby8IW34zndPAiZyyzq1hspRSTL5FXi2KE1fDc6ZFRgXaYh8eCQ__bR0yowaLJm9U2CMXN5h_Qata6eUhp9jEl_X0ZpzTVg6IcM4byqgBK8REASG9TIJcb7JrC2JU9dvUmMlwDdMI4wUMEY3BcSHsSIm2lKClFAqMdyAd8hTG3ykbHvANpcBJXGV_ZPcis' }}
-                  style={styles.vChestImage}
-                />
                 <Text style={styles.vRewardXp}>+{battle.enemy.xpReward} XP</Text>
                 <Text style={styles.vRewardLoot}>Loot Gained: 50 Gold</Text>
               </View>
@@ -105,8 +122,9 @@ export default function PostBattleScreen() {
 
           <View style={styles.dAvatarBlock}>
             <Image
-              source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCa4NOH0ZDPE0XhdiMHmYVTbnn-CyOjpC9dcKQ3nINMD9YL17sHGGTqdsxyqgSmgjSx14B17Sy92KS1VyJteSLwoG0RHR9GqvOmCbUlJNKrAHuMMyW8pf69I0c0RQTIM7nh2_o0APNG4I-p8DwekWc2zTb3gtVVK-BpjjVKGz3jCx6Hv7S9IpnOiDgtXaD5J1jB8IAOCWk36in0vEOnQm2Y1PPiZn0LkEbgDMvBW1vWnLDex5Mcc4NME7-dRQf5Xv3TDFDF6n_wTO2Q' }}
+              source={getDefeatedImage(avatarLevel)}
               style={styles.dAvatarImage}
+              resizeMode="contain"
             />
           </View>
 
@@ -132,6 +150,7 @@ export default function PostBattleScreen() {
 }
 
 const styles = StyleSheet.create({
+  // ... Styles are the same as before ...
   topAppBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -240,11 +259,6 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 20,
   },
-  vChestImage: {
-    width: 96,
-    height: 96,
-    marginBottom: 8,
-  },
   vRewardXp: {
     fontFamily: Fonts.pixel,
     fontSize: 24,
@@ -305,8 +319,8 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   dAvatarImage: {
-    width: 128,
-    height: 128,
+    width: 160,
+    height: 160,
   },
   dDialogBox: {
     width: '100%',

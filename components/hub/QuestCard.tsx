@@ -24,13 +24,13 @@ export function QuestCard({ enemy, isLocked, onPress }: QuestCardProps) {
     if (isLocked) {
         return (
             <View style={[styles.card, styles.lockedCard]}>
-                <View style={styles.contentRow}>
+                <View style={styles.topRow}>
                     <View style={[styles.imageBox, styles.lockedImageBox]}>
                         <Ionicons name="lock-closed" size={32} color="#94A3B8" />
                     </View>
                     <View style={styles.details}>
                         <View style={styles.titleRow}>
-                            <Text style={[styles.title, { color: '#94A3B8' }]}>???</Text>
+                            <Text style={[styles.title, { color: '#94A3B8' }]}>UNKNOWN TARGET</Text>
                             <Text style={[styles.level, { color: '#94A3B8' }]}>LVL {enemy.level}</Text>
                         </View>
                         <Text style={[styles.lore, { color: '#94A3B8' }]}>
@@ -45,10 +45,13 @@ export function QuestCard({ enemy, isLocked, onPress }: QuestCardProps) {
         );
     }
 
+    const exerciseLabel = EXERCISES[enemy.exercise as keyof typeof EXERCISES]?.label || enemy.exercise;
+
     return (
         <View style={styles.card}>
-            <View style={styles.contentRow}>
-                <View style={[styles.imageBox, { backgroundColor: enemy.color || '#E2E8F0' }]}>
+            {/* Top Section: Bestiary Info */}
+            <View style={styles.topRow}>
+                <View style={styles.imageBox}>
                     <Image
                         source={enemy.image}
                         style={styles.image}
@@ -62,32 +65,46 @@ export function QuestCard({ enemy, isLocked, onPress }: QuestCardProps) {
                         <Text style={styles.level}>LVL {enemy.level}</Text>
                     </View>
 
+                    {/* New HP Indicator */}
+                    <View style={styles.hpContainer}>
+                        <Text style={styles.hpText}>HP: {enemy.hp}</Text>
+                        <View style={styles.hpBarBg}>
+                            <View style={[styles.hpBarFill, { width: '100%' }]} />
+                        </View>
+                    </View>
+
                     <Text style={styles.lore} numberOfLines={2}>
                         "{enemy.lore}"
                     </Text>
+                </View>
+            </View>
 
-                    <View style={styles.footerRow}>
-                        <View style={styles.statsRow}>
-                            <View style={styles.badge}>
-                                <Text style={styles.badgeText}>
-                                    {enemy.repsRequired} {(EXERCISES[enemy.exercise as keyof typeof EXERCISES]?.label || enemy.exercise).toUpperCase()}S
-                                </Text>
-                            </View>
-                            <View style={styles.xpBox}>
-                                <MaterialCommunityIcons name="star-four-points" size={16} color={AuthColors.gold} />
-                                <Text style={styles.xpText}>{enemy.xpReward} XP</Text>
-                            </View>
+            {/* Bottom Section: Bounty & Action */}
+            <View style={styles.bottomRow}>
+                <View style={styles.questDetails}>
+                    <View style={styles.bountyBox}>
+                        <Text style={styles.boxLabel}>OBJECTIVE</Text>
+                        <Text style={styles.objectiveText}>
+                            {enemy.repsRequired} {exerciseLabel.toUpperCase()}S
+                        </Text>
+                    </View>
+                    
+                    <View style={styles.bountyBox}>
+                        <Text style={styles.boxLabel}>BOUNTY</Text>
+                        <View style={styles.xpRow}>
+                            <MaterialCommunityIcons name="star-four-points" size={14} color={AuthColors.gold} />
+                            <Text style={styles.xpText}>{enemy.xpReward} XP</Text>
                         </View>
-
-                        <TouchableOpacity
-                            style={styles.fightButton}
-                            activeOpacity={0.8}
-                            onPress={onPress}
-                        >
-                            <Text style={styles.fightButtonText}>FIGHT</Text>
-                        </TouchableOpacity>
                     </View>
                 </View>
+
+                <TouchableOpacity
+                    style={styles.fightButton}
+                    activeOpacity={0.7}
+                    onPress={onPress}
+                >
+                    <Text style={styles.fightButtonText}>FIGHT</Text>
+                </TouchableOpacity>
             </View>
         </View>
     );
@@ -100,6 +117,7 @@ const styles = StyleSheet.create({
         borderColor: AuthColors.navy,
         padding: 16,
         marginBottom: 20,
+        // Hard drop shadow for retro feel
         shadowColor: AuthColors.navy,
         shadowOffset: { width: 4, height: 4 },
         shadowOpacity: 1,
@@ -112,14 +130,17 @@ const styles = StyleSheet.create({
         borderColor: '#94A3B8',
         elevation: 0,
         shadowOpacity: 0,
+        shadowOffset: { width: 0, height: 0 },
     },
-    contentRow: {
+    topRow: {
         flexDirection: 'row',
         gap: 16,
+        marginBottom: 16,
     },
     imageBox: {
-        width: 80,
-        height: 80,
+        width: 88,
+        height: 88,
+        backgroundColor: '#F8FAFC', // Subtle off-white to frame the transparent image
         borderWidth: 3,
         borderColor: AuthColors.navy,
         alignItems: 'center',
@@ -131,67 +152,95 @@ const styles = StyleSheet.create({
         borderColor: '#94A3B8',
     },
     image: {
-        width: 64,
-        height: 64,
+        width: '100%',
+        height: '100%',
     },
     details: {
         flex: 1,
-        gap: 4,
+        justifyContent: 'center',
     },
     titleRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-start',
+        marginBottom: 4,
     },
     title: {
         fontFamily: Fonts.pixel,
         fontSize: 14,
         color: AuthColors.navy,
         flexShrink: 1,
+        lineHeight: 18,
     },
     level: {
         fontFamily: Fonts.vt323,
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: '700',
         color: AuthColors.tealLink,
     },
+    hpContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 6,
+    },
+    hpText: {
+        fontFamily: Fonts.vt323,
+        fontSize: 14,
+        color: AuthColors.crimson,
+    },
+    hpBarBg: {
+        flex: 1,
+        height: 6,
+        backgroundColor: '#E2E8F0',
+        borderWidth: 1,
+        borderColor: AuthColors.navy,
+    },
+    hpBarFill: {
+        height: '100%',
+        backgroundColor: AuthColors.crimson,
+    },
     lore: {
         fontFamily: Fonts.vt323,
-        fontSize: 18,
-        color: '#3D494C',
-        lineHeight: 20,
-        marginBottom: 8,
+        fontSize: 16,
+        color: '#475569',
+        lineHeight: 18,
     },
-    footerRow: {
+    bottomRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-end',
+        borderTopWidth: 2,
+        borderTopColor: '#E2E8F0',
+        paddingTop: 12,
     },
-    statsRow: {
+    questDetails: {
         flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
+        gap: 16,
+        flex: 1,
     },
-    badge: {
-        backgroundColor: AuthColors.navy,
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        alignItems: 'center',
+    bountyBox: {
+        gap: 2,
     },
-    badgeText: {
+    boxLabel: {
+        fontFamily: Fonts.pixel,
+        fontSize: 8,
+        color: '#94A3B8',
+    },
+    objectiveText: {
         fontFamily: Fonts.vt323,
-        fontSize: 16,
-        color: '#FFFFFF',
+        fontSize: 18,
+        color: AuthColors.navy,
         letterSpacing: 0.5,
     },
-    xpBox: {
+    xpRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
     },
     xpText: {
         fontFamily: Fonts.vt323,
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: '700',
         color: AuthColors.gold,
     },
@@ -199,17 +248,14 @@ const styles = StyleSheet.create({
         backgroundColor: AuthColors.crimson,
         borderWidth: 3,
         borderColor: AuthColors.navy,
+        borderBottomWidth: 6, // Creates a chunky 3D arcade button effect
         paddingVertical: 10,
-        paddingHorizontal: 16,
-        shadowColor: AuthColors.navy,
-        shadowOffset: { width: 3, height: 3 },
-        shadowOpacity: 1,
-        shadowRadius: 0,
-        elevation: 3,
+        paddingHorizontal: 20,
+        marginLeft: 8,
     },
     fightButtonText: {
         fontFamily: Fonts.pixel,
-        fontSize: 10,
+        fontSize: 12,
         color: '#FFFFFF',
     },
     lockedFooter: {

@@ -1,8 +1,9 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, StatusBar } from 'react-native';
 import { useGameStore, selectXpProgress } from '@/store/gameStore';
 import { useRouter } from 'expo-router';
-import { XP_TABLE, ENEMIES } from '@/constants/game';
+// ADDED MAX_LEVEL here so your XP isn't capped at 10
+import { XP_TABLE, ENEMIES, MAX_LEVEL } from '@/constants/game'; 
 import { AuthColors } from '@/constants/theme';
 import { supabase } from '@/utils/supabase';
 
@@ -19,6 +20,12 @@ export default function DashboardScreen() {
   const resetBattle = useGameStore((s) => s.resetBattle);
   const xpProgress = useGameStore(selectXpProgress);
   const startBattle = useGameStore((s) => s.startBattle);
+  const loadProfile = useGameStore((s) => s.loadProfile);
+
+  // Added this so your profile loads properly when the screen mounts
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut();
@@ -27,13 +34,15 @@ export default function DashboardScreen() {
   }, [resetAvatar, resetBattle]);
 
   const handleQuestPress = useCallback(() => {
-    if (ENEMIES.length > 0) {
-      startBattle(ENEMIES[0]);
+    // Make sure we have enemies before trying to battle
+    if (ENEMIES && ENEMIES.length > 1) { 
+      startBattle(ENEMIES[1]); // Iron Sentinel
       router.push('/combat');
     }
   }, [startBattle, router]);
 
-  const nextLevelXp = avatar.level < 10 ? XP_TABLE[avatar.level] : avatar.xp;
+  // Replaced the hardcoded 10 with MAX_LEVEL so it scales with your 1.2M XP
+  const nextLevelXp = avatar.level < MAX_LEVEL ? XP_TABLE[avatar.level] : avatar.xp;
 
   return (
     <View style={styles.screen}>
@@ -52,20 +61,24 @@ export default function DashboardScreen() {
           playerLevel={avatar.level}
           playerClass={avatar.class || 'ADVENTURER'}
         />
+        
         <AvatarStage />
+        
         <ExpBar
           currentXp={avatar.xp}
           nextLevelXp={nextLevelXp}
           progress={xpProgress}
         />
+        
         <StatGrid
           strength={avatar.stats.strength}
           agility={avatar.stats.agility}
           stamina={avatar.stats.stamina}
         />
+        
+        {/* Updated to pass the full Enemy object so the Timer card works */}
         <DailyBountyCard
-          enemyName="GRUMPY SHROOM"
-          rewardXp={120}
+          enemy={ENEMIES && ENEMIES.length > 1 ? ENEMIES[1] : null}
           onPress={handleQuestPress}
         />
       </ScrollView>

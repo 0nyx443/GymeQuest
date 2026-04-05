@@ -4,6 +4,14 @@ import { AuthColors, Fonts } from '@/constants/theme';
 import { useGameStore } from '@/store/gameStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
+// ── NEW: Added the dynamic image helper here too! ──
+const getMilestoneImage = (level: number) => {
+  if (level >= 50) return require('@/assets/images/legend_avatar.png');
+  if (level >= 25) return require('@/assets/images/champion_avatar.png');
+  if (level >= 10) return require('@/assets/images/challenger_avatar.png');
+  return require('@/assets/images/rookie_avatar.png');
+};
+
 export function ProfileLicense() {
     const avatar = useGameStore((s) => s.avatar);
 
@@ -32,10 +40,11 @@ export function ProfileLicense() {
             {/* Portrait & Basic Info */}
             <View style={styles.idCard}>
                 <View style={styles.portraitBox}>
+                    {/* ── UPDATED: Uses your dynamic image and resizeMode="contain" ── */}
                     <Image
-                        source={require('@/assets/images/portrait.png')}
+                        source={getMilestoneImage(avatar.level)}
                         style={styles.portraitImage}
-                        resizeMode="cover"
+                        resizeMode="contain"
                     />
                     <View style={styles.lvlBadge}>
                         <Text style={styles.lvlText}>LVL {avatar.level}</Text>
@@ -156,169 +165,32 @@ export function ProfileLicense() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        paddingBottom: 24,
-    },
-    header: {
-        marginBottom: 20,
-    },
-    headerLabel: {
-        fontFamily: Fonts.vt323,
-        fontSize: 18,
-        color: '#3D494C',
-        letterSpacing: 2,
-    },
-    headerTitle: {
-        fontFamily: Fonts.pixel,
-        fontSize: 28,
-        color: AuthColors.crimson,
-        marginTop: 4,
-    },
-    idCard: {
-        backgroundColor: '#FFFFFF',
-        borderWidth: 3,
-        borderColor: AuthColors.navy,
-        padding: 16,
-        flexDirection: 'row',
-        gap: 16,
-        marginBottom: 32,
-        shadowColor: AuthColors.navy,
-        shadowOffset: { width: 4, height: 4 },
-        shadowOpacity: 1,
-        shadowRadius: 0,
-        elevation: 4,
-    },
-    portraitBox: {
-        width: 90,
-        height: 90,
-        backgroundColor: '#C6E8F8',
-        borderWidth: 3,
-        borderColor: AuthColors.navy,
-        position: 'relative',
-    },
-    portraitImage: {
-        width: '100%',
-        height: '100%',
-    },
-    lvlBadge: {
-        position: 'absolute',
-        bottom: -3,
-        right: -3,
-        backgroundColor: AuthColors.crimson,
-        borderTopWidth: 3,
-        borderLeftWidth: 3,
-        borderColor: AuthColors.navy,
-        paddingHorizontal: 4,
-        paddingVertical: 2,
-    },
-    lvlText: {
-        fontFamily: Fonts.pixel,
-        fontSize: 8,
-        color: '#FFFFFF',
-    },
-    infoCol: {
-        flex: 1,
-        justifyContent: 'space-between',
-    },
-    infoLabel: {
-        fontFamily: Fonts.vt323,
-        fontSize: 14,
-        color: '#3D494C',
-        marginBottom: 2,
-    },
-    infoName: {
-        fontFamily: Fonts.pixel,
-        fontSize: 14,
-        color: AuthColors.navy,
-    },
-    rankRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-end',
-    },
-    rankBadge: {
-        backgroundColor: AuthColors.navy,
-        borderWidth: 2,
-        borderColor: AuthColors.crimson,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-    },
-    rankText: {
-        fontFamily: Fonts.pixel,
-        fontSize: 10,
-        color: '#FFFFFF',
-    },
-    section: {
-        marginBottom: 32,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 16,
-    },
-    sectionTitle: {
-        fontFamily: Fonts.pixel,
-        fontSize: 12,
-        color: AuthColors.navy,
-    },
-    statBlock: {
-        marginBottom: 20,
-    },
-    statLabels: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 6,
-    },
-    statName: {
-        fontFamily: Fonts.vt323,
-        fontSize: 16,
-        color: '#3D494C',
-    },
-    statValue: {
-        fontFamily: Fonts.vt323,
-        fontSize: 16,
-        color: AuthColors.navy,
-    },
-    statBarOuter: {
-        height: 12,
-        backgroundColor: '#D8F2FF',
-        borderWidth: 2,
-        borderColor: AuthColors.navy,
-    },
-    statBarInner: {
-        height: '100%',
-        borderRightWidth: 2,
-        borderColor: AuthColors.navy,
-    },
-    recordsGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 12,
-    },
-    recordCard: {
-        width: '48%',
-        backgroundColor: '#FFFFFF',
-        borderWidth: 3,
-        borderColor: AuthColors.navy,
-        padding: 12,
-        shadowColor: AuthColors.navy,
-        shadowOffset: { width: 3, height: 3 },
-        shadowOpacity: 1,
-        shadowRadius: 0,
-        elevation: 3,
-    },
-    recordLabel: {
-        fontFamily: Fonts.pixel,
-        fontSize: 8,
-        color: '#3D494C',
-        marginTop: 8,
-        lineHeight: 12,
-    },
-    recordVal: {
-        fontFamily: Fonts.vt323,
-        fontSize: 28,
-        color: AuthColors.crimson,
-        marginTop: 4,
-    },
+  container: { paddingBottom: 24 },
+  header: { marginBottom: 20 },
+  headerLabel: { fontFamily: Fonts.vt323, fontSize: 18, color: '#3D494C', letterSpacing: 2 },
+  headerTitle: { fontFamily: Fonts.pixel, fontSize: 28, color: AuthColors.crimson, marginTop: 4 },
+  idCard: { backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: AuthColors.navy, padding: 16, flexDirection: 'row', gap: 16, marginBottom: 32, shadowColor: AuthColors.navy, shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0, elevation: 4 },
+  portraitBox: { width: 90, height: 90, backgroundColor: '#C6E8F8', borderWidth: 3, borderColor: AuthColors.navy, position: 'relative', overflow: 'hidden' }, // Added overflow hidden just in case
+  portraitImage: { width: '100%', height: '100%' },
+  lvlBadge: { position: 'absolute', bottom: -3, right: -3, backgroundColor: AuthColors.crimson, borderTopWidth: 3, borderLeftWidth: 3, borderColor: AuthColors.navy, paddingHorizontal: 4, paddingVertical: 2 },
+  lvlText: { fontFamily: Fonts.pixel, fontSize: 8, color: '#FFFFFF' },
+  infoCol: { flex: 1, justifyContent: 'space-between' },
+  infoLabel: { fontFamily: Fonts.vt323, fontSize: 14, color: '#3D494C', marginBottom: 2 },
+  infoName: { fontFamily: Fonts.pixel, fontSize: 14, color: AuthColors.navy },
+  rankRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  rankBadge: { backgroundColor: AuthColors.navy, borderWidth: 2, borderColor: AuthColors.crimson, paddingHorizontal: 8, paddingVertical: 4 },
+  rankText: { fontFamily: Fonts.pixel, fontSize: 10, color: '#FFFFFF' },
+  section: { marginBottom: 32 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
+  sectionTitle: { fontFamily: Fonts.pixel, fontSize: 12, color: AuthColors.navy },
+  statBlock: { marginBottom: 20 },
+  statLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  statName: { fontFamily: Fonts.vt323, fontSize: 16, color: '#3D494C' },
+  statValue: { fontFamily: Fonts.vt323, fontSize: 16, color: AuthColors.navy },
+  statBarOuter: { height: 12, backgroundColor: '#D8F2FF', borderWidth: 2, borderColor: AuthColors.navy },
+  statBarInner: { height: '100%', borderRightWidth: 2, borderColor: AuthColors.navy },
+  recordsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  recordCard: { width: '48%', backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: AuthColors.navy, padding: 12, shadowColor: AuthColors.navy, shadowOffset: { width: 3, height: 3 }, shadowOpacity: 1, shadowRadius: 0, elevation: 3 },
+  recordLabel: { fontFamily: Fonts.pixel, fontSize: 8, color: '#3D494C', marginTop: 8, lineHeight: 12 },
+  recordVal: { fontFamily: Fonts.vt323, fontSize: 28, color: AuthColors.crimson, marginTop: 4 },
 });

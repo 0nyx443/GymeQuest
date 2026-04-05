@@ -7,6 +7,8 @@ import * as Haptics from 'expo-haptics';
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { useGameStore } from '@/store/gameStore';
+// 1. ADDED AUDIO STORE IMPORT
+import { useAudioStore, intensityToHaptic } from '@/store/audioStore';
 import { usePoseEngine, MEDIAPIPE_WEBVIEW_HTML } from '@/hooks/usePoseEngine';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { EXERCISES } from '@/constants/game';
@@ -37,6 +39,9 @@ export default function CombatScreen() {
   const {
     repState, repCount, isBodyVisible, processPoseData,
   } = usePoseEngine(exercise, isActive);
+
+  // 2. ADDED AUDIO PREFS INITIALIZATION
+  const audioPrefs = useAudioStore();
 
   // ── Inject exercise type as soon as WebView is ready ──────────────────────
   useEffect(() => {
@@ -104,7 +109,12 @@ export default function CombatScreen() {
         ]),
         Animated.timing(damageAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
       ]).start();
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+      
+      // 3. UPDATED HAPTICS LOGIC TO USE STORE PREFERENCES
+      if (audioPrefs.repVibrationEnabled) {
+        const style = intensityToHaptic(audioPrefs.repVibrationIntensity);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle[style]).catch(() => {});
+      }
 
       if (repCount >= battle.enemy.repsRequired) {
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
@@ -118,7 +128,16 @@ export default function CombatScreen() {
         setTimeout(() => router.replace('/post-battle'), 800);
       }
     }
-  }, [repCount, isActive, battle, registerRep, resolveBattle, router]);
+  }, [
+    repCount, 
+    isActive, 
+    battle, 
+    registerRep, 
+    resolveBattle, 
+    router, 
+    audioPrefs.repVibrationEnabled, 
+    audioPrefs.repVibrationIntensity
+  ]); // Added audio prefs to dependency array
 
   if (!permission?.granted) {
     return (

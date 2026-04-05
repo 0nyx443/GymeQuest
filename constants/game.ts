@@ -88,7 +88,7 @@ export const ENEMIES: Enemy[] = [
     title: 'Forest Ambusher',
     hp: 100,
     exercise: 'push_up',
-    repsRequired: 10,
+    repsRequired: 1,
     timeLimit: 90,
     xpReward: 120,
     statBoosts: { strength: 2 },

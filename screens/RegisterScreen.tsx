@@ -19,6 +19,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { supabase } from '@/utils/supabase';
 import { useGameStore } from '@/store/gameStore';
@@ -33,22 +34,22 @@ type Props = {
 // ─── Avatar definitions ───────────────────────────────────────────────────────
 const AVATARS = [
   { label: 'THE IRON FIST', bg: '#4A90D9', body: '#2C5F8A', accent: '#87CEEB' },
-  { label: 'SHADOW BLADE',  bg: '#8B6914', body: '#5A4309', accent: '#DAB65E' },
-  { label: 'STORM CALLER',  bg: '#7B3FA0', body: '#4A1F6B', accent: '#C59FD0' },
-  { label: 'FLAME WARDEN',  bg: '#BB152C', body: '#7A0E1E', accent: '#F4A0A0' },
+  { label: 'SHADOW BLADE', bg: '#8B6914', body: '#5A4309', accent: '#DAB65E' },
+  { label: 'STORM CALLER', bg: '#7B3FA0', body: '#4A1F6B', accent: '#C59FD0' },
+  { label: 'FLAME WARDEN', bg: '#BB152C', body: '#7A0E1E', accent: '#F4A0A0' },
 ];
 
 // ─── Fitness tiers ────────────────────────────────────────────────────────────
 const TIERS = [
-  { id: 'villager', label: 'VILLAGER', desc: 'I am new to exercise.',        rank: 'RECRUIT'    },
-  { id: 'squire',   label: 'SQUIRE',   desc: 'I work out occasionally.',     rank: 'APPRENTICE' },
-  { id: 'knight',   label: 'KNIGHT',   desc: 'I am a calisthenics veteran.', rank: 'VETERAN'    },
+  { id: 'villager', label: 'VILLAGER', desc: 'I am new to exercise.', rank: 'RECRUIT' },
+  { id: 'squire', label: 'SQUIRE', desc: 'I work out occasionally.', rank: 'APPRENTICE' },
+  { id: 'knight', label: 'KNIGHT', desc: 'I am a calisthenics veteran.', rank: 'VETERAN' },
 ];
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function PixelToast({ message, visible }: { message: string; visible: boolean }) {
   const translateY = useRef(new Animated.Value(-80)).current;
-  const opacity    = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
@@ -59,7 +60,7 @@ function PixelToast({ message, visible }: { message: string; visible: boolean })
     } else {
       Animated.parallel([
         Animated.timing(translateY, { toValue: -80, duration: 250, easing: Easing.in(Easing.ease), useNativeDriver: true }),
-        Animated.timing(opacity,    { toValue: 0,   duration: 250, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 250, useNativeDriver: true }),
       ]).start();
     }
   }, [visible]);
@@ -75,9 +76,11 @@ function PixelToast({ message, visible }: { message: string; visible: boolean })
 }
 const toastSt = StyleSheet.create({
   wrap: { position: 'absolute', top: 16, left: 24, right: 24, zIndex: 999, alignItems: 'center' },
-  box:  { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: AC.crimson,
-          borderWidth: 3, borderColor: AC.navy, paddingHorizontal: 16, paddingVertical: 12,
-          shadowColor: AC.navy, shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0, elevation: 4 },
+  box: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: AC.crimson,
+    borderWidth: 3, borderColor: AC.navy, paddingHorizontal: 16, paddingVertical: 12,
+    shadowColor: AC.navy, shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0, elevation: 4
+  },
   icon: { fontFamily: Fonts.vt323, fontSize: 20, color: '#fff' },
   text: { fontFamily: Fonts.vt323, fontSize: 18, color: '#fff', letterSpacing: 0.5, flexShrink: 1 },
 });
@@ -89,11 +92,11 @@ function PixelAvatar({ index }: { index: number }) {
   return (
     <View style={{ width: 160, height: 160 }}>
       {/* Head */}
-      {B({ width: 52, height: 52, top: 8,  left: 54, backgroundColor: a.bg })}
+      {B({ width: 52, height: 52, top: 8, left: 54, backgroundColor: a.bg })}
       {/* Left eye */}
-      {B({ width: 8,  height: 8,  top: 24, left: 62, backgroundColor: '#000', borderWidth: 0 })}
+      {B({ width: 8, height: 8, top: 24, left: 62, backgroundColor: '#000', borderWidth: 0 })}
       {/* Right eye */}
-      {B({ width: 8,  height: 8,  top: 24, right: 62, backgroundColor: '#000', borderWidth: 0 })}
+      {B({ width: 8, height: 8, top: 24, right: 62, backgroundColor: '#000', borderWidth: 0 })}
       {/* Torso */}
       {B({ width: 44, height: 52, top: 68, left: 58, backgroundColor: a.body })}
       {/* Left arm */}
@@ -120,9 +123,9 @@ function SectionHeader({ title, iconColor }: { title: string; iconColor: string 
   );
 }
 const secSt = StyleSheet.create({
-  row:   { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
-  icon:  { width: 16, height: 20 },
-  line:  { flex: 1, height: 3, backgroundColor: '#123441', opacity: 0.2 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
+  icon: { width: 16, height: 20 },
+  line: { flex: 1, height: 3, backgroundColor: '#123441', opacity: 0.2 },
   title: { fontFamily: Fonts.pixel, fontSize: 10, lineHeight: 15, color: '#123441' },
 });
 
@@ -131,23 +134,35 @@ function FL({ text }: { text: string }) {
   return <Text style={flSt.label}>{text}</Text>;
 }
 const flSt = StyleSheet.create({
-  label: { fontFamily: Fonts.vt323, fontSize: 20, lineHeight: 28, letterSpacing: 1,
-           textTransform: 'uppercase', color: '#123441' },
+  label: {
+    fontFamily: Fonts.vt323, fontSize: 20, lineHeight: 28, letterSpacing: 1,
+    textTransform: 'uppercase', color: '#123441'
+  },
 });
 
 // ─── Pixel Input ──────────────────────────────────────────────────────────────
-function PI(props: React.ComponentProps<typeof TextInput>) {
+function PI(props: React.ComponentProps<typeof TextInput> & { rightElement?: React.ReactNode }) {
+  const { rightElement, ...rest } = props;
   return (
     <View style={piSt.wrap}>
-      <TextInput style={piSt.input} placeholderTextColor="#6B7280" {...props} />
+      <TextInput style={piSt.input} placeholderTextColor="#6B7280" {...rest} />
+      {rightElement && (
+        <View style={{ position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center' }}>
+          {rightElement}
+        </View>
+      )}
     </View>
   );
 }
 const piSt = StyleSheet.create({
-  wrap:  { marginBottom: 20, shadowColor: '#123441', shadowOffset: { width: 4, height: 4 },
-           shadowOpacity: 1, shadowRadius: 0, elevation: 4 },
-  input: { height: 62, backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: '#123441',
-           paddingHorizontal: 12, fontFamily: Fonts.vt323, fontSize: 24, color: '#123441' },
+  wrap: {
+    marginBottom: 20, shadowColor: '#123441', shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 1, shadowRadius: 0, elevation: 4
+  },
+  input: {
+    height: 62, backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: '#123441',
+    paddingHorizontal: 12, fontFamily: Fonts.vt323, fontSize: 24, color: '#123441'
+  },
 });
 
 // ─── Unit Toggle ──────────────────────────────────────────────────────────────
@@ -164,10 +179,10 @@ function UnitToggle({ options, selected, onSelect }:
   );
 }
 const utSt = StyleSheet.create({
-  wrap:       { flexDirection: 'row', borderWidth: 2, borderColor: '#123441', backgroundColor: '#E6F6FF' },
-  btn:        { paddingHorizontal: 8, paddingVertical: 4 },
-  active:     { backgroundColor: '#123441' },
-  text:       { fontFamily: Fonts.vt323, fontSize: 14, fontWeight: '700', color: '#123441', lineHeight: 20 },
+  wrap: { flexDirection: 'row', borderWidth: 2, borderColor: '#123441', backgroundColor: '#E6F6FF' },
+  btn: { paddingHorizontal: 8, paddingVertical: 4 },
+  active: { backgroundColor: '#123441' },
+  text: { fontFamily: Fonts.vt323, fontSize: 14, fontWeight: '700', color: '#123441', lineHeight: 20 },
   activeText: { color: '#F3FAFF' },
 });
 
@@ -184,10 +199,12 @@ function SexToggle({ value, onChange }: { value: 'male' | 'female'; onChange: (v
   );
 }
 const stSt = StyleSheet.create({
-  row:  { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  btn:  { flex: 1, height: 48, justifyContent: 'center', alignItems: 'center',
-          backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: '#123441',
-          shadowColor: '#123441', shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0, elevation: 4 },
+  row: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+  btn: {
+    flex: 1, height: 48, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: '#123441',
+    shadowColor: '#123441', shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0, elevation: 4
+  },
   active: { backgroundColor: '#C6E8F8' },
   text: { fontFamily: Fonts.pixel, fontSize: 10, lineHeight: 15, color: '#123441' },
 });
@@ -203,26 +220,30 @@ function TierCard({ tier, selected, onPress }:
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[tcSt.label, s && tcSt.labelSel]}>{tier.label}</Text>
-        <Text style={[tcSt.desc,  s && tcSt.descSel]}>{tier.desc}</Text>
+        <Text style={[tcSt.desc, s && tcSt.descSel]}>{tier.desc}</Text>
       </View>
       {s && <View style={tcSt.check} />}
     </TouchableOpacity>
   );
 }
 const tcSt = StyleSheet.create({
-  card:       { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 16, marginBottom: 16,
-                backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: '#123441',
-                shadowColor: '#123441', shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0, elevation: 4 },
-  cardSel:    { backgroundColor: '#FDF1E6', borderColor: '#E63946', shadowColor: '#E63946' },
-  iconBox:    { width: 48, height: 48, justifyContent: 'center', alignItems: 'center',
-                backgroundColor: '#E6F6FF', borderWidth: 2, borderColor: '#123441' },
+  card: {
+    flexDirection: 'row', alignItems: 'center', padding: 16, gap: 16, marginBottom: 16,
+    backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: '#123441',
+    shadowColor: '#123441', shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0, elevation: 4
+  },
+  cardSel: { backgroundColor: '#FDF1E6', borderColor: '#E63946', shadowColor: '#E63946' },
+  iconBox: {
+    width: 48, height: 48, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: '#E6F6FF', borderWidth: 2, borderColor: '#123441'
+  },
   iconBoxSel: { backgroundColor: '#FFFFFF', borderColor: '#E63946' },
-  icon:       { width: 24, height: 24 },
-  label:      { fontFamily: Fonts.pixel, fontSize: 12, lineHeight: 18, color: '#123441', marginBottom: 4 },
-  labelSel:   { color: '#E63946' },
-  desc:       { fontFamily: Fonts.vt323, fontSize: 18, lineHeight: 28, color: '#123441', opacity: 0.7 },
-  descSel:    { color: '#E63946', opacity: 0.8 },
-  check:      { width: 20, height: 20, backgroundColor: '#E63946' },
+  icon: { width: 24, height: 24 },
+  label: { fontFamily: Fonts.pixel, fontSize: 12, lineHeight: 18, color: '#123441', marginBottom: 4 },
+  labelSel: { color: '#E63946' },
+  desc: { fontFamily: Fonts.vt323, fontSize: 18, lineHeight: 28, color: '#123441', opacity: 0.7 },
+  descSel: { color: '#E63946', opacity: 0.8 },
+  check: { width: 20, height: 20, backgroundColor: '#E63946' },
 });
 
 // ─── RegisterScreen ───────────────────────────────────────────────────────────
@@ -232,28 +253,29 @@ export default function RegisterScreen({ onBack }: Props) {
 
   // Account
   const [heroName, setHeroName] = useState('');
-  const [email,    setEmail]    = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Biometrics
-  const [birthday,   setBirthday]   = useState('');
-  const [sex,        setSex]        = useState<'male' | 'female'>('male');
-  const [height,     setHeight]     = useState('');
+  const [birthday, setBirthday] = useState('');
+  const [sex, setSex] = useState<'male' | 'female'>('male');
+  const [height, setHeight] = useState('');
   const [heightUnit, setHeightUnit] = useState<0 | 1>(0); // 0=CM, 1=IN
-  const [weight,     setWeight]     = useState('');
+  const [weight, setWeight] = useState('');
   const [weightUnit, setWeightUnit] = useState<0 | 1>(0); // 0=KG, 1=LB
 
   // Combat tier
   const [tier, setTier] = useState('squire');
 
   // Loading / Toast
-  const [loading,      setLoading]      = useState(false);
-  const [toastMsg,     setToastMsg]     = useState('');
+  const [loading, setLoading] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadProfile        = useGameStore((s) => s.loadProfile);
-  const setAvatar          = useGameStore((s) => s.setAvatar);
+  const loadProfile = useGameStore((s) => s.loadProfile);
+  const setAvatar = useGameStore((s) => s.setAvatar);
   const setProfileNeedsName = useGameStore((s) => s.setProfileNeedsName);
 
   // Derived
@@ -274,8 +296,8 @@ export default function RegisterScreen({ onBack }: Props) {
 
   async function handleSubmit() {
     if (!heroName.trim()) { showToast('Enter a hero name!'); return; }
-    if (!email.trim())    { showToast('Enter your guild email!'); return; }
-    if (!password)        { showToast('Enter a pass code!'); return; }
+    if (!email.trim()) { showToast('Enter your guild email!'); return; }
+    if (!password) { showToast('Enter a pass code!'); return; }
     if (password.length < 6) { showToast('Pass code must be 6+ chars!'); return; }
 
     setLoading(true);
@@ -330,7 +352,7 @@ export default function RegisterScreen({ onBack }: Props) {
     });
     // Update atomically using Zustand so we don't flash the Dashboard
     useGameStore.setState({ showTutorial: true, profileNeedsName: false });
-    
+
     // Background sync of the updated profile
     loadProfile();
   }
@@ -398,7 +420,16 @@ export default function RegisterScreen({ onBack }: Props) {
             placeholder="••••••••"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
+            secureTextEntry={!showPassword}
+            rightElement={
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons
+                  name={showPassword ? 'eye-off' : 'eye'}
+                  size={24}
+                  color="#123441"
+                />
+              </TouchableOpacity>
+            }
           />
         </View>
 

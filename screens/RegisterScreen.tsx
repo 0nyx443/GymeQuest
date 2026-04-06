@@ -248,9 +248,6 @@ const tcSt = StyleSheet.create({
 
 // ─── RegisterScreen ───────────────────────────────────────────────────────────
 export default function RegisterScreen({ onBack }: Props) {
-  // Avatar
-  const [avatarIdx, setAvatarIdx] = useState(0);
-
   // Account
   const [heroName, setHeroName] = useState('');
   const [email, setEmail] = useState('');
@@ -366,36 +363,7 @@ export default function RegisterScreen({ onBack }: Props) {
         keyboardShouldPersistTaps="handled"
       >
 
-        {/* ── INTERACTIVE AVATAR PREVIEW ── */}
-        <View style={rs.avatarSection}>
-          {/* Left Arrow */}
-          <TouchableOpacity
-            style={[rs.arrowBtn, { left: 0 }]}
-            onPress={() => setAvatarIdx((i) => (i - 1 + AVATARS.length) % AVATARS.length)}
-          >
-            <View style={rs.arrowL} />
-          </TouchableOpacity>
 
-          {/* Avatar Box */}
-          <View style={rs.avatarBox}>
-            <PixelAvatar index={avatarIdx} />
-          </View>
-
-          {/* Right Arrow */}
-          <TouchableOpacity
-            style={[rs.arrowBtn, { right: 0 }]}
-            onPress={() => setAvatarIdx((i) => (i + 1) % AVATARS.length)}
-          >
-            <View style={rs.arrowR} />
-          </TouchableOpacity>
-
-          {/* Label */}
-          <View style={rs.avatarLabelWrap}>
-            <Text style={rs.avatarLabelText}>
-              {`SELECT YOUR HERO\n${AVATARS[avatarIdx].label}`}
-            </Text>
-          </View>
-        </View>
 
         {/* ── ACCOUNT BASICS ── */}
         <View style={rs.section}>

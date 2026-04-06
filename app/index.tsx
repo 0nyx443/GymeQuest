@@ -41,8 +41,9 @@ export default function HomeRoute() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setIsSessionLoading(false);
-      
+
       if (session) {
+        setActiveTab('home'); // always start on Dashboard after login
         useGameStore.setState({ isProfileLoaded: false });
         loadProfile();
       } else {

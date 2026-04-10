@@ -83,6 +83,8 @@ export default function PostBattleScreen() {
   const repsRequired = battle.enemy.repsRequired;
 
   if (isVictory) {
+    const goldGained = (battle.enemy.coinReward || 50) + repsCompleted;
+
     return (
       <View style={styles.vScreen}>
         <LinearGradient colors={['#f3faff', '#c6e8f8']} style={StyleSheet.absoluteFillObject} />
@@ -107,7 +109,7 @@ export default function PostBattleScreen() {
 
               <View style={styles.vRewardContent}>
                 <Text style={styles.vRewardXp}>+{battle.enemy.xpReward} XP</Text>
-                <Text style={styles.vRewardLoot}>Loot Gained: 50 Gold</Text>
+                <Text style={styles.vRewardLoot}>Loot Gained: {goldGained} Gold</Text>
               </View>
 
               <TouchableOpacity style={styles.vBtn} onPress={handleContinue}>
@@ -122,6 +124,8 @@ export default function PostBattleScreen() {
   }
 
   // DEFEAT
+  const goldGainedDefeat = Math.floor(repsCompleted / 2);
+
   return (
     <View style={styles.dScreen}>
       <Animated.View style={{ flex: 1, zIndex: 10, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
@@ -139,6 +143,7 @@ export default function PostBattleScreen() {
             </Text>
             <View style={styles.dDialogDivider} />
             <Text style={styles.dDialogSub}>Rest up at the inn and try again!</Text>
+            <Text style={{ ...styles.dDialogSub, color: AuthColors.gold, marginTop: 8 }}>Pity Reward: {goldGainedDefeat} Gold</Text>
           </View>
 
           <TouchableOpacity style={styles.dBtnContainer} activeOpacity={0.8} onPress={handleContinue}>

@@ -74,6 +74,7 @@ export interface Enemy {
   repsRequired: number;
   timeLimit: number;        // seconds
   xpReward: number;
+  coinReward: number;       // Gold coins rewarded on victory
   statBoosts: Partial<Record<StatKey, number>>;
   difficulty: Difficulty;
   lore: string;
@@ -91,6 +92,7 @@ export const ENEMIES: Enemy[] = [
     repsRequired: 1,
     timeLimit: 90,
     xpReward: 120,
+    coinReward: 50,
     statBoosts: { strength: 2 },
     difficulty: 1,
     lore: 'A wiry creature haunting the Thornwood. Swift but fragile.',
@@ -106,6 +108,7 @@ export const ENEMIES: Enemy[] = [
     repsRequired: 20,
     timeLimit: 120,
     xpReward: 280,
+    coinReward: 120,
     statBoosts: { stamina: 3, strength: 1 },
     difficulty: 2,
     lore: 'An ancient automaton guarding the Mountain Pass. Immovable and relentless.',
@@ -121,6 +124,7 @@ export const ENEMIES: Enemy[] = [
     repsRequired: 25,
     timeLimit: 150,
     xpReward: 450,
+    coinReward: 200,
     statBoosts: { agility: 4, stamina: 2 },
     difficulty: 3,
     lore: 'A former warrior consumed by darkness. Deadly fast.',

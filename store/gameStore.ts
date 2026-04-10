@@ -13,6 +13,9 @@ export interface AvatarState {
   class: string;
   level: number;
   xp: number;
+  coins: number;           // NEW: Earned by defeating enemies
+  currentStreak: number;   // NEW: Current daily workout streak
+  lastActiveDate: string | null; // NEW: The ISO string date of last workout
   stats: PlayerStats;
   defeatedEnemies: string[];
   totalReps: number;
@@ -43,7 +46,7 @@ interface GameStore {
   // Avatar actions
   gainXp: (amount: number) => void;
   boostStats: (boosts: Partial<PlayerStats>) => void;
-  recordBattle: (won: boolean, reps: number, enemyId: string) => void;
+  recordBattle: (won: boolean, reps: number, enemy: Enemy) => void;
 
   // Battle actions
   startBattle: (enemy: Enemy) => void;
@@ -77,6 +80,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     class: 'Iron Aspirant',
     level: 1,
     xp: 0,
+    coins: 0,
+    currentStreak: 0,
+    lastActiveDate: null,
     stats: { strength: 10, agility: 10, stamina: 10 },
     defeatedEnemies: [],
     totalReps: 0,
@@ -108,17 +114,49 @@ export const useGameStore = create<GameStore>((set, get) => ({
     },
   })),
 
-  recordBattle: (won, reps, enemyId) => set((state) => ({
-    avatar: {
-      ...state.avatar,
-      totalReps: state.avatar.totalReps + reps,
-      totalBattles: state.avatar.totalBattles + 1,
-      victories: state.avatar.victories + (won ? 1 : 0),
-      defeatedEnemies: won
-        ? [...state.avatar.defeatedEnemies, enemyId]
-        : state.avatar.defeatedEnemies,
-    },
-  })),
+  recordBattle: (won, reps, enemy) => set((state) => {
+    let { currentStreak, coins, lastActiveDate } = state.avatar;
+    
+    // Add coins (base enemy reward + 1 per rep if won, else just partial reps)
+    if (won) {
+      coins += enemy.coinReward + reps;
+    } else {
+      coins += Math.floor(reps / 2);
+    }
+    
+    // Manage Streak
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (lastActiveDate !== todayStr) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      
+      if (lastActiveDate === yesterdayStr) {
+        currentStreak += 1;
+      } else if (!lastActiveDate) {
+        currentStreak = 1;
+      } else {
+        // Streak broken
+        currentStreak = 1;
+      }
+      lastActiveDate = todayStr;
+    }
+
+    return {
+      avatar: {
+        ...state.avatar,
+        coins,
+        currentStreak,
+        lastActiveDate,
+        totalReps: state.avatar.totalReps + reps,
+        totalBattles: state.avatar.totalBattles + 1,
+        victories: state.avatar.victories + (won ? 1 : 0),
+        defeatedEnemies: won && !state.avatar.defeatedEnemies.includes(enemy.id)
+          ? [...state.avatar.defeatedEnemies, enemy.id]
+          : state.avatar.defeatedEnemies,
+      }
+    };
+  }),
 
   startBattle: (enemy) => set({
     battle: {
@@ -187,14 +225,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     recordBattle(
       outcome === 'victory',
       battle.repsCompleted,
-      battle.enemy.id,
+      battle.enemy
     );
     // Persist the latest avatar stats to Supabase in the background
     get().syncProfile().catch(() => {});
   },
 
   resetBattle: () => set({ battle: null }),
-  resetAvatar: () => set({ avatar: { name: 'Aethor', class: 'Iron Aspirant', level: 1, xp: 0, stats: { strength: 0, agility: 0, stamina: 0 }, defeatedEnemies: [], totalReps: 0, totalBattles: 0, victories: 0 } }),
+  resetAvatar: () => set({ avatar: { name: 'Aethor', class: 'Iron Aspirant', level: 1, xp: 0, coins: 0, currentStreak: 0, lastActiveDate: null, stats: { strength: 0, agility: 0, stamina: 0 }, defeatedEnemies: [], totalReps: 0, totalBattles: 0, victories: 0 } }),
   setAvatar: (avatarData) => set((state) => ({ avatar: { ...state.avatar, ...avatarData } })),
   setProfileNeedsName: (need) => set({ profileNeedsName: need }),
   setShowTutorial: (show) => set({ showTutorial: show }),
@@ -231,6 +269,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         totalReps: data.total_reps ?? 0,
         totalBattles: data.battles ?? 0,
         victories: data.victories ?? 0,
+        coins: data.coins ?? 0,
+        currentStreak: data.current_streak ?? 0,
+        lastActiveDate: data.last_active_date ?? null,
         birthday: data.birthday,
         sex: data.sex,
         height_cm: data.height_cm,
@@ -258,6 +299,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       battles: state.totalBattles,
       victories: state.victories,
       total_reps: state.totalReps,
+      coins: state.coins,
+      current_streak: state.currentStreak,
+      last_active_date: state.lastActiveDate,
       birthday: state.birthday,
       sex: state.sex,
       height_cm: state.height_cm,

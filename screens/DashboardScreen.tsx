@@ -54,6 +54,7 @@ export default function DashboardScreen() {
           playerName={avatar.name}
           playerLevel={avatar.level}
           playerClass={avatar.class || 'ADVENTURER'}
+          onStorePress={() => router.push('/store')}
         />
 
         <AvatarStage />

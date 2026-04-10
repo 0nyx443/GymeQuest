@@ -95,6 +95,10 @@ export function QuestCard({ enemy, isLocked, onPress }: QuestCardProps) {
                             <MaterialCommunityIcons name="star-four-points" size={14} color={AuthColors.gold} />
                             <Text style={styles.xpText}>{enemy.xpReward} XP</Text>
                         </View>
+                        <View style={styles.xpRow}>
+                            <MaterialCommunityIcons name="circle-multiple-outline" size={14} color={AuthColors.gold} />
+                            <Text style={styles.xpText}>{enemy.coinReward} COINS</Text>
+                        </View>
                     </View>
                 </View>
 

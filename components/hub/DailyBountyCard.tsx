@@ -68,10 +68,14 @@ export function DailyBountyCard({ enemy, onPress }: DailyBountyCardProps) {
                         </Text>
                     </View>
                     
-                    {/* The XP Reward */}
+                    {/* The XP & Gold Reward */}
                     <View style={styles.statRow}>
                         <MaterialCommunityIcons name="star-four-points" size={20} color={AuthColors.gold} />
                         <Text style={styles.rewardText}>REWARD: {enemy.xpReward} XP</Text>
+                    </View>
+                    <View style={styles.statRow}>
+                        <MaterialCommunityIcons name="circle-multiple-outline" size={20} color={AuthColors.gold} />
+                        <Text style={styles.rewardText}>LOOT: {enemy.coinReward} COINS</Text>
                     </View>
                 </View>
             </View>

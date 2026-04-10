@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, ScrollView, StatusBar, ImageBackground } from 'react-native';
 import { AuthColors } from '@/constants/theme';
 import { ProfileLicense } from '@/components/profile/ProfileLicense';
+import { ProfileInventory } from '@/components/profile/ProfileInventory';
 import { ProfileSettings } from '@/components/profile/ProfileSettings';
 
 export default function ProfileScreen() {
@@ -15,6 +16,8 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         <ProfileLicense />
+
+        <ProfileInventory />
 
         {/* Divider / Spacer */}
         <View style={styles.divider} />

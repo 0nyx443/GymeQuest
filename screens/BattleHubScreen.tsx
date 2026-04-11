@@ -98,27 +98,28 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
     ]).start(callback);
   };
 
+  // Check if endurance battle is available
+  const isEnduranceAvailable = !avatar.lastEnduranceDate || (new Date(avatar.lastEnduranceDate).getTime() < getThisMondaysMidnight());
+  const enduranceBadgeText = isEnduranceAvailable ? 'PLAY' : weeklyTimeLeft;
+
+  // Quick stat summary
+  // Prefix ID with 'daily_' to separate it from the Quest version
+  const dailyEnemy = ENEMIES.length > 0 ? { ...ENEMIES[0], id: `daily_${ENEMIES[0].id}`, title: 'Daily Target' } : null;
+
   const handleBattlePress = useCallback(() => {
     animPress(battleScaleAnim, () => {
-      if (ENEMIES.length > 0) {
-        startBattle(ENEMIES[0]);
+      if (dailyEnemy) {
+        startBattle(dailyEnemy);
         router.push('/combat');
       }
     });
-  }, [startBattle, router]);
+  }, [startBattle, router, dailyEnemy]);
 
   const handleQuestsPress = useCallback(() => {
     animPress(questScaleAnim, () => {
       onQuestsPress();
     });
   }, [onQuestsPress]);
-
-  // Check if endurance battle is available
-  const isEnduranceAvailable = !avatar.lastEnduranceDate || (new Date(avatar.lastEnduranceDate).getTime() < getThisMondaysMidnight());
-  const enduranceBadgeText = isEnduranceAvailable ? 'PLAY' : weeklyTimeLeft;
-
-  // Quick stat summary
-  const dailyEnemy = ENEMIES.length > 0 ? ENEMIES[0] : null;
 
   return (
     <View style={styles.screen}>
@@ -286,19 +287,13 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
 
       {/* ── Reward Claim Animation Overlay ── */}
       {rewardAnimVisible && (
-        <Modal
-          transparent
-          visible={rewardAnimVisible}
-          animationType="fade"
-        >
-          <View style={[styles.rewardAnimOverlay, { zIndex: 100, elevation: 100 }]}>
-            <Animated.View style={[styles.rewardAnimBox, { transform: [{ scale: rewardScaleAnim }] }]}>
-              <MaterialCommunityIcons name="star-four-points" size={80} color="#FFD700" />
-              <Text style={styles.rewardAnimText}>+{dailyRewardCoins} Coins</Text>
-              <Text style={styles.rewardAnimSubtext}>Daily Reward Claimed!</Text>
-            </Animated.View>
-          </View>
-        </Modal>
+        <View style={[styles.rewardAnimOverlay, { zIndex: 100, elevation: 100 }]}>
+          <Animated.View style={[styles.rewardAnimBox, { transform: [{ scale: rewardScaleAnim }] }]}>
+            <MaterialCommunityIcons name="star-four-points" size={80} color="#FFD700" />
+            <Text style={styles.rewardAnimText}>+{dailyRewardCoins} Coins</Text>
+            <Text style={styles.rewardAnimSubtext}>Daily Reward Claimed!</Text>
+          </Animated.View>
+        </View>
       )}
 
     </View>

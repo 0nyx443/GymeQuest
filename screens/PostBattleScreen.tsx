@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   dDialogDivider: { height: 2, backgroundColor: '#123441', opacity: 0.1, width: '100%', marginVertical: 16 },
   dDialogSub: { fontFamily: Fonts.vt323, fontSize: 20, color: '#3d494c', textAlign: 'center' },
   dBtnContainer: { position: 'relative' },
-  dBtnShadow: { position: 'absolute', inset: 0, backgroundColor: '#123441', transform: [{ translateX: 4 }, { translateY: 4 }] },
+  dBtnShadow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#123441', transform: [{ translateX: 4 }, { translateY: 4 }] },
   dBtnInner: { backgroundColor: AuthColors.white, borderWidth: 3, borderColor: '#123441', paddingHorizontal: 32, paddingVertical: 16 },
   dBtnText: { fontFamily: Fonts.pixel, fontSize: 14, color: '#123441' },
 });

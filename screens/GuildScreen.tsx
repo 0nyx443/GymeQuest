@@ -258,6 +258,7 @@ export default function GuildScreen() {
       };
     });
 
+    mappedMembers.sort((a, b) => b.level - a.level);
     setMembers(mappedMembers);
     setRaids((raidsResponse.data ?? []) as GuildRaid[]);
   }, []);
@@ -658,7 +659,7 @@ export default function GuildScreen() {
 
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionHeaderText}>MEMBER LIST</Text>
+            <Text style={styles.sectionHeaderText}>LEADERBOARD (MEMBER LIST)</Text>
           </View>
 
           {members.length === 0 ? (
@@ -666,8 +667,11 @@ export default function GuildScreen() {
               <Text style={styles.emptySectionText}>No active members found.</Text>
             </View>
           ) : (
-            members.map((member) => (
+            members.map((member, index) => (
               <View key={member.userId} style={styles.memberCard}>
+                <View style={[styles.rankBadge, index === 0 && styles.rank1, index === 1 && styles.rank2, index === 2 && styles.rank3]}>
+                  <Text style={[styles.rankText, index < 3 && styles.topRankText]}>#{index + 1}</Text>
+                </View>
                 <View style={styles.memberAvatarBox}>
                   <Text style={styles.memberInitial}>{member.name.slice(0, 1).toUpperCase()}</Text>
                   <View style={styles.memberLevelBadge}>
@@ -1155,6 +1159,21 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
     elevation: 4,
   },
+  rankBadge: {
+    width: 38,
+    height: 38,
+    borderWidth: 3,
+    borderColor: '#123441',
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-5deg' }]
+  },
+  rank1: { backgroundColor: AuthColors.gold },
+  rank2: { backgroundColor: '#C0C0C0' },
+  rank3: { backgroundColor: '#CD7F32' },
+  rankText: { fontFamily: Fonts.vt323, fontSize: 18, color: '#123441' },
+  topRankText: { color: AuthColors.white },
   memberAvatarBox: {
     width: 64,
     height: 64,
@@ -1213,7 +1232,7 @@ const styles = StyleSheet.create({
   },
   viewProfileBtn: { backgroundColor: "#CC2B3E", paddingHorizontal: 12, paddingVertical: 4, borderWidth: 2, borderColor: "#123441" },
   viewProfileText: { fontFamily: Fonts.vt323, fontSize: 16, color: "#FFF" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" },
+  modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" },
   modalContent: { width: "85%", backgroundColor: "#FDF1E6", borderWidth: 4, borderColor: "#123441", padding: 20 },
   modalTitle: { fontFamily: Fonts.pixel, fontSize: 18, color: "#123441", marginBottom: 16, textAlign: "center" },
   statRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 12, borderBottomWidth: 1, borderBottomColor: "rgba(18,52,65,0.1)", paddingBottom: 4 },

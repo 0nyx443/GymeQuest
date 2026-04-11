@@ -155,7 +155,7 @@ function CloudStrip() {
   ];
 
   return (
-    <View style={cloudStyles.strip}>
+    <View style={cloudStyles.strip} pointerEvents="none">
       <Animated.View style={[cloudStyles.row, { transform: [{ translateX: pan }] }]}>
         {slots.map((s, i) => (
           <View key={i} style={[cloudStyles.slot, { width: s.w, marginRight: i % 2 === 0 ? 32 : 48 }]}>
@@ -202,8 +202,7 @@ const cloudStyles = StyleSheet.create({
     right: 0,
     top: 80,
     overflow: 'hidden',
-    pointerEvents: 'none',
-  } as any,
+  },
   row: {
     position: 'absolute',
     flexDirection: 'row',
@@ -486,8 +485,11 @@ const styles = StyleSheet.create({
   },
   bg: {
     position: 'absolute',
-    inset: 0,
-  } as any,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   bgTexture: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'transparent',

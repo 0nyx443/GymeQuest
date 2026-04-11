@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Alert, Animated } from 'react-native';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useGameStore } from '@/store/gameStore';
@@ -11,9 +11,13 @@ export default function StoreScreen() {
   const purchaseItem = useGameStore((s) => s.purchaseItem);
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
 
+  const [rewardAnimVisible, setRewardAnimVisible] = useState(false);
+  const [purchasedItemName, setPurchasedItemName] = useState("");
+  const rewardScaleAnim = useRef(new Animated.Value(0)).current;
+
   const handlePurchase = useCallback(async (item: CatalogItem) => {
     if (coins < item.price) {
-      alert("Not enough coins!");
+      Alert.alert("Checkout Failed", "Not enough coins!");
       return;
     }
     setPurchasingId(item.id);
@@ -21,11 +25,17 @@ export default function StoreScreen() {
     setPurchasingId(null);
     
     if (result.success) {
-      alert(`Purchased ${item.name}!`);
+      setPurchasedItemName(item.name);
+      setRewardAnimVisible(true);
+      Animated.sequence([
+        Animated.spring(rewardScaleAnim, { toValue: 1.2, friction: 3, useNativeDriver: true }),
+        Animated.timing(rewardScaleAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
+        Animated.timing(rewardScaleAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]).start(() => setRewardAnimVisible(false));
     } else {
-      alert(`Purchase failed: ${result.error}`);
+      Alert.alert("Purchase failed", result.error);
     }
-  }, [coins, purchaseItem]);
+  }, [coins, purchaseItem, rewardScaleAnim]);
 
   const renderItem = useCallback(({ item }: { item: CatalogItem }) => (
     <View style={styles.itemCard}>
@@ -71,6 +81,17 @@ export default function StoreScreen() {
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
       />
+
+      {/* ── Purchase Success Animation Overlay ── */}
+      {rewardAnimVisible && (
+        <View style={[styles.rewardAnimOverlay, { zIndex: 100, elevation: 100 }]}>
+          <Animated.View style={[styles.rewardAnimBox, { transform: [{ scale: rewardScaleAnim }] }]}>
+            <MaterialCommunityIcons name="shopping-outline" size={48} color="#FFD700" />
+            <Text style={styles.rewardAnimText}>Purchase Successful</Text>
+            <Text style={styles.rewardAnimSubtext}>{purchasedItemName} added!</Text>
+          </Animated.View>
+        </View>
+      )}
     </View>
   );
 }
@@ -145,4 +166,40 @@ const styles = StyleSheet.create({
   },
   buyButtonDisabled: { opacity: 0.5 },
   buyText: { fontFamily: Fonts.pixel, fontSize: 14, color: '#FFFFFF' },
+
+  // Reward Anim
+  rewardAnimOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  rewardAnimBox: {
+    backgroundColor: "#1E293B",
+    borderWidth: 4,
+    borderColor: "#FFD700",
+    borderRadius: 12,
+    alignItems: "center",
+    padding: 20,
+    shadowColor: "#FFD700",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    width: '80%',
+    maxWidth: 300,
+  },
+  rewardAnimText: {
+    fontFamily: Fonts.pixel,
+    fontSize: 14,
+    color: "#FFD700",
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  rewardAnimSubtext: {
+    fontFamily: Fonts.vt323,
+    fontSize: 16,
+    color: "#FFF",
+    marginTop: 4,
+    textAlign: 'center',
+  },
 });

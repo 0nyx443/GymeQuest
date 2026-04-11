@@ -170,28 +170,57 @@ export const ENEMIES: Enemy[] = [
 // ── ENDURANCE BOSSES ──
 export const BOSSES: Enemy[] = [
   {
-    id: 'titan_overlord',
-    name: 'Titan Overlord',
-    title: 'The Unending Trial',
+    id: 'endurance_goblin_swarm',
+    name: 'Goblin Swarm',
+    title: '30 Second Challenge',
     hp: 9999,
-    exercise: 'squat', // Fallback, uses phases mostly
-    repsRequired: 9999, // limitless
-    timeLimit: 300, // 5 minutes timer
+    exercise: 'squat',
+    repsRequired: 9999,
+    timeLimit: 30, // 30 seconds
     xpReward: 0,
     coinReward: 0,
-    statBoosts: { strength: 10, stamina: 10 },
-    difficulty: 5,
-    lore: 'Endurance Boss. The more reps you complete before time runs out, the greater the rewards. If you stop moving, you lose!',
-    color: '#2D1B4E',
+    statBoosts: { strength: 2, stamina: 2 },
+    difficulty: 1,
+    lore: 'An endless swarm of minor goblins. Survive for 30 seconds.',
+    color: '#3A5A40',
     isEndurance: true,
-    phases: [
-      { exercise: 'push_up', reps: 10 },
-      { exercise: 'squat', reps: 10 },
-      { exercise: 'sit_up', reps: 10 },
-      // { exercise: 'pull_up', reps: 10 }, // Assuming we want them looping
-    ] // In combat screen, we will loop these phases
-  },
-];
+      image: require('@/assets/images/goblin_scout.png'),
+    },
+    {
+      id: 'endurance_orc_vanguard',
+      name: 'Orc Vanguard',
+      title: '1 Minute Gauntlet',
+      hp: 9999,
+      exercise: 'squat',
+      repsRequired: 9999,
+      timeLimit: 60, // 60 seconds
+      xpReward: 0,
+      coinReward: 0,
+      statBoosts: { strength: 5, stamina: 5 },
+      difficulty: 3,
+      lore: 'A heavily armored line of Orc warriors. Hold out for 1 minute.',
+      color: '#8B4513',
+      isEndurance: true,
+      image: require('@/assets/images/iron_sentinel.png'),
+    },
+    {
+      id: 'endurance_titan_overlord',
+      name: 'Titan Overlord',
+      title: '2 Minute Trial',
+      hp: 9999,
+      exercise: 'squat', // Fallback, uses phases mostly
+      repsRequired: 9999, // limitless
+      timeLimit: 120, // 2 minutes timer
+      xpReward: 0,
+      coinReward: 0,
+      statBoosts: { strength: 10, stamina: 10 },
+      difficulty: 5,
+      lore: 'The legendary Titan. Stand your ground for 2 agonizing minutes.',
+      color: '#2D1B4E',
+      isEndurance: true,
+      image: require('@/assets/images/ancient_colossus.png'),
+    },
+  ];
 
 // ── NEW: Level Cap increased from 10 to 50 ──
 export const MAX_LEVEL = 50;

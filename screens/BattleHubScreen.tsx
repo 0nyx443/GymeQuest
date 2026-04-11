@@ -9,7 +9,7 @@
 import React, { useCallback, useRef, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, StatusBar, Animated, Alert
+  ScrollView, StatusBar, Animated, Alert, Modal, Image
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -51,6 +51,24 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
 
   const [timeLeft, setTimeLeft] = useState('');
   const [weeklyTimeLeft, setWeeklyTimeLeft] = useState('');
+  const [showDifficultyModal, setShowDifficultyModal] = useState(false);
+  const [showExerciseModal, setShowExerciseModal] = useState(false);
+  const [rewardAnimVisible, setRewardAnimVisible] = useState(false);
+  const rewardScaleAnim = useRef(new Animated.Value(0)).current;
+
+  // New selected Boss state for exercise choosing
+  const [selectedBoss, setSelectedBoss] = useState<any>(null);
+
+  const _claimReward = useCallback(() => {
+    claimDailyReward().then(() => {
+      setRewardAnimVisible(true);
+      Animated.sequence([
+        Animated.spring(rewardScaleAnim, { toValue: 1.2, friction: 3, useNativeDriver: true }),
+        Animated.timing(rewardScaleAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
+        Animated.timing(rewardScaleAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]).start(() => setRewardAnimVisible(false));
+    });
+  }, [claimDailyReward, rewardScaleAnim]);
 
   useEffect(() => {
     const updateTimer = () => {
@@ -170,7 +188,7 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
           </View>
           <TouchableOpacity 
             style={[styles.dailyRewardBtn, !showDailyReward && styles.dailyRewardBtnDisabled]} 
-            onPress={showDailyReward ? claimDailyReward : undefined}
+            onPress={showDailyReward ? _claimReward : undefined}
             activeOpacity={showDailyReward ? 0.7 : 1}
           >
             <Text style={styles.dailyRewardBtnTxt}>{showDailyReward ? 'CLAIM' : 'CLAIMED'}</Text>
@@ -216,29 +234,7 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
               return;
             }
             if (BOSSES && BOSSES.length > 0) {
-              Alert.alert(
-                "Select Training",
-                "Which exercise do you want to train for this Endurance match?",
-                [
-                  {
-                    text: 'Push-ups',
-                    onPress: () => {
-                      const customizedBoss = { ...BOSSES[0], exercise: 'push_up' as any, phases: undefined };
-                      startBattle(customizedBoss);
-                      router.push('/combat');
-                    },
-                  },
-                  {
-                    text: 'Squats',
-                    onPress: () => {
-                      const customizedBoss = { ...BOSSES[0], exercise: 'squat' as any, phases: undefined };
-                      startBattle(customizedBoss);
-                      router.push('/combat');
-                    },
-                  },
-                  { text: 'Cancel', style: 'cancel' }
-                ]
-              );
+              setShowDifficultyModal(true);
             }
           }}
         >
@@ -280,6 +276,125 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
           </View>
         </View>
       </ScrollView>
+
+      {/* ── Custom Difficulty Selection Modal ── */}
+      {showDifficultyModal && (
+        <Modal
+          visible={showDifficultyModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDifficultyModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Select Difficulty</Text>
+              <Text style={styles.modalSubTitle}>How long do you want to endure?</Text>
+
+{BOSSES.map((boss) => {
+                  let diffLabel = "Easy";
+                  let timeLabel = "(30 seconds)";
+                  if (boss.difficulty === 3) { diffLabel = "Medium"; timeLabel = "(1 minute)"; }
+                  if (boss.difficulty === 5) { diffLabel = "Hard"; timeLabel = "(2 minutes)"; }
+
+                  return (
+                    <TouchableOpacity
+                      key={boss.id}
+                      style={styles.bossOptionBtn}
+                      onPress={() => {
+                        setSelectedBoss(boss);
+                        setShowDifficultyModal(false);
+                        setTimeout(() => setShowExerciseModal(true), 300);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      {boss.image ? (
+                        <Image source={boss.image} style={{ width: 40, height: 40, marginRight: 10, borderRadius: 20 }} />
+                      ) : (
+                        <MaterialCommunityIcons name="skull" size={28} color={boss.color} />
+                      )}
+                      <View style={styles.bossOptionTextWrap}>
+                        <Text style={[styles.bossOptionName, { color: boss.color }]}>{diffLabel}: {boss.name}</Text>
+                        <Text style={styles.bossOptionMeta}>{timeLabel} • 30 XP / Rep</Text>
+                      </View>
+                      <MaterialCommunityIcons name="chevron-right" size={24} color={boss.color} />
+                    </TouchableOpacity>
+                  );
+                })}
+
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowDifficultyModal(false)}>
+                <Text style={styles.modalCancelTxt}>CANCEL</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* ── Custom Exercise Selection Modal ── */}
+      {showExerciseModal && selectedBoss && (
+        <Modal
+          visible={showExerciseModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowExerciseModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Select Training</Text>
+              <Text style={styles.modalSubTitle}>Which exercise do you want to train for this Endurance match?</Text>
+
+              <TouchableOpacity
+                style={styles.exerciseOptionBtn}
+                onPress={() => {
+                  const customizedBoss = { ...selectedBoss, exercise: 'push_up', phases: undefined };
+                  setShowExerciseModal(false);
+                  startBattle(customizedBoss);
+                  router.push('/combat');
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.exerciseEmoji}>💪</Text>
+                <Text style={styles.exerciseOptionName}>Push-ups</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.exerciseOptionBtn}
+                onPress={() => {
+                  const customizedBoss = { ...selectedBoss, exercise: 'squat', phases: undefined };
+                  setShowExerciseModal(false);
+                  startBattle(customizedBoss);
+                  router.push('/combat');
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.exerciseEmoji}>🦵</Text>
+                <Text style={styles.exerciseOptionName}>Squats</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowExerciseModal(false)}>
+                <Text style={styles.modalCancelTxt}>CANCEL</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* ── Reward Claim Animation Overlay ── */}
+      {rewardAnimVisible && (
+        <Modal
+          transparent
+          visible={rewardAnimVisible}
+          animationType="fade"
+        >
+          <View style={[styles.rewardAnimOverlay, { zIndex: 100, elevation: 100 }]}>
+            <Animated.View style={[styles.rewardAnimBox, { transform: [{ scale: rewardScaleAnim }] }]}>
+              <MaterialCommunityIcons name="star-four-points" size={80} color="#FFD700" />
+              <Text style={styles.rewardAnimText}>+{dailyRewardCoins} Coins</Text>
+              <Text style={styles.rewardAnimSubtext}>Daily Reward Claimed!</Text>
+            </Animated.View>
+          </View>
+        </Modal>
+      )}
+
     </View>
   );
 }
@@ -647,4 +762,119 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
     
+  // Modals
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    borderWidth: 3,
+    borderColor: AuthColors.navy,
+    padding: 20,
+    width: "100%",
+    maxWidth: 380,
+  },
+  modalTitle: {
+    fontFamily: Fonts.mono,
+    fontSize: 22,
+    color: AuthColors.navy,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  modalSubTitle: {
+    fontFamily: Fonts.ui,
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  bossOptionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 2,
+    borderColor: "#E2E8F0",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  bossOptionTextWrap: {
+    flex: 1,
+  },
+  bossOptionName: {
+    fontFamily: Fonts.mono,
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  bossOptionMeta: {
+    fontFamily: Fonts.vt323,
+    fontSize: 14,
+    color: "#64748B",
+  },
+  exerciseOptionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 2,
+    borderColor: "#E2E8F0",
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 12,
+  },
+  exerciseEmoji: {
+    fontSize: 28,
+    marginRight: 16,
+  },
+  exerciseOptionName: {
+    fontFamily: Fonts.mono,
+    fontSize: 18,
+    color: AuthColors.navy,
+  },
+  modalCancelBtn: {
+    marginTop: 8,
+    paddingVertical: 12,
+  },
+  modalCancelTxt: {
+    fontFamily: Fonts.pixel,
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+  },
+
+  // Reward Anim
+  rewardAnimOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  rewardAnimBox: {
+    backgroundColor: "#1E293B",
+    borderWidth: 4,
+    borderColor: "#FFD700",
+    borderRadius: 16,
+    alignItems: "center",
+    padding: 30,
+    shadowColor: "#FFD700",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+  },
+  rewardAnimText: {
+    fontFamily: Fonts.mono,
+    fontSize: 24,
+    color: "#FFD700",
+    marginTop: 16,
+  },
+  rewardAnimSubtext: {
+    fontFamily: Fonts.ui,
+    fontSize: 14,
+    color: "#FFF",
+    marginTop: 8,
+  },
 });

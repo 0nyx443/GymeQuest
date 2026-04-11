@@ -199,7 +199,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     let lastEnduranceDate = state.avatar.lastEnduranceDate;
-    if (enemy.isEndurance) {
+    if (enemy.isEndurance && won) {
       lastEnduranceDate = todayStr;
     }
 

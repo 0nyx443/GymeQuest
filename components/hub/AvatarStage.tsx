@@ -41,14 +41,14 @@ export function AvatarStage() {
     return (
         <View style={styles.container}>
             {/* Decorative Clouds */}
-            <View style={styles.cloudsWrapper}>
+            <View style={styles.cloudsWrapper} pointerEvents="none">
                 <Ionicons name="cloud" size={48} color="white" style={{ marginTop: 16, opacity: 0.6 }} />
                 <Ionicons name="cloud" size={36} color="white" style={{ marginTop: 48, opacity: 0.6 }} />
                 <Ionicons name="cloud" size={44} color="white" style={{ marginTop: 24, marginLeft: '30%', opacity: 0.5 }} />
             </View>
 
             {/* Pixel Cityscape Background */}
-            <View style={styles.cityscape}>
+            <View style={styles.cityscape} pointerEvents="none">
                 {/* Back layer */}
                 <View style={[styles.bldg, { left: '5%', width: '15%', height: 160, backgroundColor: '#E2E8F0' }]} />
                 <View style={[styles.bldg, { left: '25%', width: '20%', height: 190, backgroundColor: '#E2E8F0' }]} />
@@ -56,7 +56,7 @@ export function AvatarStage() {
                 <View style={[styles.bldg, { left: '75%', width: '18%', height: 170, backgroundColor: '#E2E8F0' }]} />
                 
                 {/* Mid layer */}
-                <View style={[styles.bldg, { left: '-2%', width: '12%', height: 120, backgroundColor: '#CBD5E1' }]} />
+                <View style={[styles.bldg, { left: 0, width: '12%', height: 120, backgroundColor: '#CBD5E1' }]} />
                 <View style={[styles.bldg, { left: '15%', width: '18%', height: 140, backgroundColor: '#CBD5E1' }]} />
                 <View style={[styles.bldg, { left: '35%', width: '16%', height: 100, backgroundColor: '#CBD5E1' }]} />
                 <View style={[styles.bldg, { left: '55%', width: '22%', height: 130, backgroundColor: '#CBD5E1' }]} />
@@ -106,7 +106,6 @@ const styles = StyleSheet.create({
         bottom: 0,
         flexDirection: 'row',
         justifyContent: 'space-around',
-        pointerEvents: 'none',
     },
     cityscape: {
         position: 'absolute',
@@ -115,7 +114,7 @@ const styles = StyleSheet.create({
         right: 0,
         height: 200,
         zIndex: 2,
-        pointerEvents: 'none',
+        overflow: 'hidden',
     },
     bldg: {
         position: 'absolute',

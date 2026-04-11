@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Audio } from 'expo-av';
 
 export type VibrationIntensity = 'light' | 'medium' | 'strong';
 export type TTSSpeed = 'slow' | 'normal' | 'fast';
@@ -99,3 +100,63 @@ export function speedToRate(speed: TTSSpeed): number {
   if (speed === 'fast') return 1.25;
   return 1.0;
 }
+
+// ── Dynamic Audio Players ──
+// Separate from persisted Zustand state for memory safety
+let bgmSound: Audio.Sound | null = null;
+let thwackSound: Audio.Sound | null = null;
+
+export const playCombatBgm = async () => {
+  try {
+    if (bgmSound) {
+      await bgmSound.stopAsync();
+      await bgmSound.unloadAsync();
+      bgmSound = null;
+    }
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+    
+    const { sound } = await Audio.Sound.createAsync(
+      require('@/assets/audio/bgm.mp3'),
+      { isLooping: true, shouldPlay: true, rate: 1.0, volume: 0.5 }
+    );
+    bgmSound = sound;
+  } catch (e) {
+    // console.log("missing bgm.mp3");
+  }
+};
+
+export const setBgmSpeed = async (rate: number) => {
+  if (bgmSound) {
+    try {
+      await bgmSound.setRateAsync(rate, true);
+    } catch(e) {}
+  }
+};
+
+export const stopCombatBgm = async () => {
+  if (bgmSound) {
+    try {
+      await bgmSound.stopAsync();
+      await bgmSound.unloadAsync();
+    } catch(e){}
+    bgmSound = null;
+  }
+};
+
+export const playThwackSound = async () => {
+  try {
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+    const { sound } = await Audio.Sound.createAsync(
+      require('@/assets/audio/thwack.mp3'),
+      { shouldPlay: true, volume: 1.0 }
+    );
+    sound.setOnPlaybackStatusUpdate((status) => {
+      // @ts-ignore
+      if (status.isLoaded && status.didJustFinish) {
+        sound.unloadAsync();
+      }
+    });
+  } catch (e) {
+    // missing sound
+  }
+};

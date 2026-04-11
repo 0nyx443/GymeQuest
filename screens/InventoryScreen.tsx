@@ -1,21 +1,39 @@
 /**
  * InventoryScreen.tsx — placeholder for player's item inventory.
  */
-import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, StatusBar, FlatList } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, StatusBar, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { useGameStore } from '@/store/gameStore';
 
-import { InventoryRow } from '@/utils/inventory';
+import { InventoryRow, CatalogItem } from '@/utils/inventory';
 
 export default function InventoryScreen() {
   const inventory = useGameStore((s) => s.inventory);
   const catalog = useGameStore((s) => s.catalog);
+  const useItemFromInventory = useGameStore((s) => s.useItemFromInventory);
+  
+  const [usingId, setUsingId] = useState<string | null>(null);
+
+  const handleUseItem = async (item: CatalogItem) => {
+    if (usingId) return;
+    setUsingId(item.id);
+    const result = await useItemFromInventory(item);
+    setUsingId(null);
+    if (result.success) {
+      Alert.alert('Item Used!', `${item.name} has been applied.`);
+    } else {
+      Alert.alert('Cannot Use Item', result.error);
+    }
+  };
 
   const renderItem = useCallback(({ item }: { item: InventoryRow }) => {
     const catalogItem = catalog.find((c) => c.id === item.item_id);
     if (!catalogItem) return null;
+
+    // Show "USE" button mainly for items like streak savers
+    const canUseFromInventory = catalogItem.item_type === 'streak_restore';
 
     return (
       <View style={styles.itemCard}>
@@ -26,12 +44,27 @@ export default function InventoryScreen() {
           <Text style={styles.itemName}>{catalogItem.name}</Text>
           <Text style={styles.itemDesc}>{catalogItem.description}</Text>
         </View>
-        <View style={styles.qtyBadge}>
-          <Text style={styles.qtyText}>x{item.quantity}</Text>
+        <View style={styles.rightActionBox}>
+          <View style={styles.qtyBadge}>
+            <Text style={styles.qtyText}>x{item.quantity}</Text>
+          </View>
+          {canUseFromInventory && (
+            <TouchableOpacity 
+              style={[styles.useBtn, usingId === catalogItem.id && styles.useBtnDisabled]}
+              disabled={usingId === catalogItem.id}
+              onPress={() => handleUseItem(catalogItem)}
+            >
+              {usingId === catalogItem.id ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.useBtnText}>USE</Text>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
-  }, [catalog]);
+  }, [catalog, handleUseItem, usingId]);
 
   return (
     <View style={styles.screen}>
@@ -165,8 +198,12 @@ const styles = StyleSheet.create({
     color: AuthColors.labelMuted,
     lineHeight: 16,
   },
+  rightActionBox: {
+    alignItems: 'flex-end',
+    gap: 8,
+  },
   qtyBadge: {
-    backgroundColor: '#1E293B', // Dark grey/navy badge
+    backgroundColor: '#1E293B',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 2,
@@ -174,7 +211,23 @@ const styles = StyleSheet.create({
   },
   qtyText: {
     fontFamily: Fonts.pixel,
-    fontSize: 16,
+    fontSize: 14,
     color: '#FFFFFF',
+  },
+  useBtn: {
+    backgroundColor: AuthColors.crimson,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 2,
+    borderColor: AuthColors.navy,
+  },
+  useBtnDisabled: {
+    opacity: 0.5,
+  },
+  useBtnText: {
+    fontFamily: Fonts.pixel,
+    fontSize: 10,
+    color: '#FFFFFF',
+    letterSpacing: 1,
   },
 });

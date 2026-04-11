@@ -70,6 +70,7 @@ interface GameStore {
   queueItemEffect: (effect: CatalogItem) => void;
   clearPendingEffect: () => void;
   consumeQueuedItem: (itemId: string) => Promise<void>;
+  useItemFromInventory: (item: CatalogItem) => Promise<{ success: boolean; error?: string }>;
 
   // Battle actions
   startBattle: (enemy: Enemy) => void;
@@ -126,17 +127,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   claimDailyReward: async () => {
     const { data: userData } = await supabase.auth.getUser();
-    if (!userData?.user) return;
+    const userId = userData?.user?.id || 'guest';
     
     // Give base coins + slight bonus based on current streak
-    const reward = get().dailyRewardCoins;
+    const reward = Math.max(50, get().dailyRewardCoins);
     set((state) => ({ 
       avatar: { ...state.avatar, coins: state.avatar.coins + reward },
       showDailyLoginReward: false
     }));
     
     const todayStr = new Date().toISOString().split('T')[0];
-    await AsyncStorage.setItem(`lastLoginReward_${userData.user.id}`, todayStr);
+    await AsyncStorage.setItem(`lastLoginReward_${userId}`, todayStr);
     
     get().syncProfile().catch(() => {});
   },
@@ -259,7 +260,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   queueItemEffect: (effect) => set({ pendingItemEffect: effect }),
   clearPendingEffect: () => set({ pendingItemEffect: null }),
 
-  consumeQueuedItem: async (itemId) => {
+    consumeQueuedItem: async (itemId) => {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData?.user) return;
     await consumeItem(userData.user.id, itemId);
@@ -268,6 +269,55 @@ export const useGameStore = create<GameStore>((set, get) => ({
         r.item_id === itemId ? { ...r, quantity: Math.max(0, r.quantity - 1) } : r
       ).filter((r) => r.quantity > 0),
     }));
+  },
+
+  useItemFromInventory: async (item) => {
+    const state = get();
+    // Only handle streak_restore directly from inventory for now
+    if (item.item_type !== 'streak_restore') {
+      return { success: false, error: 'This item can only be used before a battle!' };
+    }
+
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) return { success: false, error: 'Must be logged in to use items.' };
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    // If they already worked out today or yesterday, streak is not broken
+    if (state.avatar.lastActiveDate === todayStr || state.avatar.lastActiveDate === yesterdayStr) {
+      return { success: false, error: 'Your streak is already active! No need to use this yet.' };
+    }
+
+    // Determine current quantity
+    const invRow = state.inventory.find(i => i.item_id === item.id);
+    if (!invRow || invRow.quantity < 1) {
+      return { success: false, error: 'You do not own this item.' };
+    }
+
+    // Consume the item
+    const consumeRes = await consumeItem(userData.user.id, item.id);
+    if (!consumeRes.success) {
+      return { success: false, error: consumeRes.error };
+    }
+
+    // Apply effect: Fast-forward their last active date to yesterday so today's workout continues the streak!
+    set((s) => ({
+      avatar: {
+        ...s.avatar,
+        lastActiveDate: yesterdayStr
+      },
+      inventory: s.inventory.map((r) =>
+        r.item_id === item.id ? { ...r, quantity: Math.max(0, r.quantity - 1) } : r
+      ).filter((r) => r.quantity > 0),
+    }));
+    
+    // Save to DB
+    get().syncProfile().catch(() => {});
+
+    return { success: true };
   },
 
   // ── startBattle — apply pending item effects & passive stats ──────────────
@@ -410,10 +460,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
   loadProfile: async () => {
     const { data: userData } = await supabase.auth.getUser();
     const user = userData?.user;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Guest user flow
     if (!user) {
-      set({ profileNeedsName: true, isProfileLoaded: true });
+      const lastLoginReward = await AsyncStorage.getItem('lastLoginReward_guest');
+      let showReward = false;
+      let rewardAmount = 0;
+      if (lastLoginReward !== todayStr) {
+        showReward = true;
+        // Base 50 for guests since they have no streak state tracked locally yet
+        rewardAmount = 50;
+      }
+      
+      set({ 
+        profileNeedsName: true, 
+        isProfileLoaded: true,
+        showDailyLoginReward: showReward,
+        dailyRewardCoins: rewardAmount
+      });
       return true;
     }
+
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -432,8 +500,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const storedEnduranceStr = await AsyncStorage.getItem(`lastEnduranceDate_${user.id}`);
     let loadedEnduranceDate = storedEnduranceStr ?? null;
-
-    const todayStr = new Date().toISOString().split('T')[0];
 
     if (data.last_active_date !== todayStr) {
       loadedDefeatedEnemies = [];

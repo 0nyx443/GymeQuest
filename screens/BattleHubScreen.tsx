@@ -14,7 +14,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useGameStore, selectXpProgress } from '@/store/gameStore';
-import { ENEMIES, BOSSES, XP_TABLE, MAX_LEVEL } from '@/constants/game';
+import { ENEMIES, BOSSES, XP_TABLE, MAX_LEVEL, EXERCISES } from '@/constants/game';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { AvatarStage } from '@/components/hub/AvatarStage';
 import { ExpBar } from '@/components/hub/ExpBar';
@@ -51,13 +51,8 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
 
   const [timeLeft, setTimeLeft] = useState('');
   const [weeklyTimeLeft, setWeeklyTimeLeft] = useState('');
-  const [showDifficultyModal, setShowDifficultyModal] = useState(false);
-  const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [rewardAnimVisible, setRewardAnimVisible] = useState(false);
   const rewardScaleAnim = useRef(new Animated.Value(0)).current;
-
-  // New selected Boss state for exercise choosing
-  const [selectedBoss, setSelectedBoss] = useState<any>(null);
 
   const _claimReward = useCallback(() => {
     claimDailyReward().then(() => {
@@ -103,27 +98,28 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
     ]).start(callback);
   };
 
+  // Check if endurance battle is available
+  const isEnduranceAvailable = !avatar.lastEnduranceDate || (new Date(avatar.lastEnduranceDate).getTime() < getThisMondaysMidnight());
+  const enduranceBadgeText = isEnduranceAvailable ? 'PLAY' : weeklyTimeLeft;
+
+  // Quick stat summary
+  // Prefix ID with 'daily_' to separate it from the Quest version
+  const dailyEnemy = ENEMIES.length > 0 ? { ...ENEMIES[0], id: `daily_${ENEMIES[0].id}`, title: 'Daily Target' } : null;
+
   const handleBattlePress = useCallback(() => {
     animPress(battleScaleAnim, () => {
-      if (ENEMIES.length > 0) {
-        startBattle(ENEMIES[0]);
+      if (dailyEnemy) {
+        startBattle(dailyEnemy);
         router.push('/combat');
       }
     });
-  }, [startBattle, router]);
+  }, [startBattle, router, dailyEnemy]);
 
   const handleQuestsPress = useCallback(() => {
     animPress(questScaleAnim, () => {
       onQuestsPress();
     });
   }, [onQuestsPress]);
-
-  // Check if endurance battle is available
-  const isEnduranceAvailable = !avatar.lastEnduranceDate || (new Date(avatar.lastEnduranceDate).getTime() < getThisMondaysMidnight());
-  const enduranceBadgeText = isEnduranceAvailable ? 'PLAY' : weeklyTimeLeft;
-
-  // Quick stat summary
-  const dailyEnemy = ENEMIES.length > 0 ? ENEMIES[0] : null;
 
   return (
     <View style={styles.screen}>
@@ -135,9 +131,9 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
       >
         {/* ── Header ── */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.headerSub}>WELCOME BACK,</Text>
-            <Text style={styles.headerName}>{(avatar.name || 'ADVENTURER').toUpperCase()}</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.headerSub} numberOfLines={1}>WELCOME BACK,</Text>
+            <Text style={styles.headerName} numberOfLines={1} ellipsizeMode="tail">{(avatar.name || 'ADVENTURER').toUpperCase()}</Text>
           </View>
           <View style={styles.headerBadges}>
             {/* Streak Badge */}
@@ -234,7 +230,19 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
               return;
             }
             if (BOSSES && BOSSES.length > 0) {
-              setShowDifficultyModal(true);
+              const baseBoss = BOSSES[0];
+              const singleBoss = {
+                ...baseBoss,
+                id: 'endurance_weekly_boss',
+                name: 'Weekly Boss',
+                title: '1 Minute Trial',
+                timeLimit: 60, // Exactly 1 minute
+                difficulty: 3 as const,
+                exercise: 'squat' as any, // Defaulting to squat
+                phases: undefined
+              };
+              startBattle(singleBoss);
+              router.push('/combat');
             }
           }}
         >
@@ -277,122 +285,15 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
         </View>
       </ScrollView>
 
-      {/* ── Custom Difficulty Selection Modal ── */}
-      {showDifficultyModal && (
-        <Modal
-          visible={showDifficultyModal}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowDifficultyModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Select Difficulty</Text>
-              <Text style={styles.modalSubTitle}>How long do you want to endure?</Text>
-
-{BOSSES.map((boss) => {
-                  let diffLabel = "Easy";
-                  let timeLabel = "(30 seconds)";
-                  if (boss.difficulty === 3) { diffLabel = "Medium"; timeLabel = "(1 minute)"; }
-                  if (boss.difficulty === 5) { diffLabel = "Hard"; timeLabel = "(2 minutes)"; }
-
-                  return (
-                    <TouchableOpacity
-                      key={boss.id}
-                      style={styles.bossOptionBtn}
-                      onPress={() => {
-                        setSelectedBoss(boss);
-                        setShowDifficultyModal(false);
-                        setTimeout(() => setShowExerciseModal(true), 300);
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      {boss.image ? (
-                        <Image source={boss.image} style={{ width: 40, height: 40, marginRight: 10, borderRadius: 20 }} />
-                      ) : (
-                        <MaterialCommunityIcons name="skull" size={28} color={boss.color} />
-                      )}
-                      <View style={styles.bossOptionTextWrap}>
-                        <Text style={[styles.bossOptionName, { color: boss.color }]}>{diffLabel}: {boss.name}</Text>
-                        <Text style={styles.bossOptionMeta}>{timeLabel} • 30 XP / Rep</Text>
-                      </View>
-                      <MaterialCommunityIcons name="chevron-right" size={24} color={boss.color} />
-                    </TouchableOpacity>
-                  );
-                })}
-
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowDifficultyModal(false)}>
-                <Text style={styles.modalCancelTxt}>CANCEL</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-      )}
-
-      {/* ── Custom Exercise Selection Modal ── */}
-      {showExerciseModal && selectedBoss && (
-        <Modal
-          visible={showExerciseModal}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowExerciseModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Select Training</Text>
-              <Text style={styles.modalSubTitle}>Which exercise do you want to train for this Endurance match?</Text>
-
-              <TouchableOpacity
-                style={styles.exerciseOptionBtn}
-                onPress={() => {
-                  const customizedBoss = { ...selectedBoss, exercise: 'push_up', phases: undefined };
-                  setShowExerciseModal(false);
-                  startBattle(customizedBoss);
-                  router.push('/combat');
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.exerciseEmoji}>💪</Text>
-                <Text style={styles.exerciseOptionName}>Push-ups</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.exerciseOptionBtn}
-                onPress={() => {
-                  const customizedBoss = { ...selectedBoss, exercise: 'squat', phases: undefined };
-                  setShowExerciseModal(false);
-                  startBattle(customizedBoss);
-                  router.push('/combat');
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.exerciseEmoji}>🦵</Text>
-                <Text style={styles.exerciseOptionName}>Squats</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowExerciseModal(false)}>
-                <Text style={styles.modalCancelTxt}>CANCEL</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-      )}
-
       {/* ── Reward Claim Animation Overlay ── */}
       {rewardAnimVisible && (
-        <Modal
-          transparent
-          visible={rewardAnimVisible}
-          animationType="fade"
-        >
-          <View style={[styles.rewardAnimOverlay, { zIndex: 100, elevation: 100 }]}>
-            <Animated.View style={[styles.rewardAnimBox, { transform: [{ scale: rewardScaleAnim }] }]}>
-              <MaterialCommunityIcons name="star-four-points" size={80} color="#FFD700" />
-              <Text style={styles.rewardAnimText}>+{dailyRewardCoins} Coins</Text>
-              <Text style={styles.rewardAnimSubtext}>Daily Reward Claimed!</Text>
-            </Animated.View>
-          </View>
-        </Modal>
+        <View style={[styles.rewardAnimOverlay, { zIndex: 100, elevation: 100 }]}>
+          <Animated.View style={[styles.rewardAnimBox, { transform: [{ scale: rewardScaleAnim }] }]}>
+            <MaterialCommunityIcons name="star-four-points" size={80} color="#FFD700" />
+            <Text style={styles.rewardAnimText}>+{dailyRewardCoins} Coins</Text>
+            <Text style={styles.rewardAnimSubtext}>Daily Reward Claimed!</Text>
+          </Animated.View>
+        </View>
       )}
 
     </View>
@@ -474,7 +375,8 @@ const styles = StyleSheet.create({
   headerBadges: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    flexShrink: 0,
+    gap: 8,
   },
   streakBadge: {
     backgroundColor: AuthColors.white,
@@ -764,7 +666,7 @@ const styles = StyleSheet.create({
     
   // Modals
   modalOverlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
@@ -848,7 +750,7 @@ const styles = StyleSheet.create({
 
   // Reward Anim
   rewardAnimOverlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.6)",

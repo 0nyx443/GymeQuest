@@ -8,7 +8,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 
 import { useGameStore } from '@/store/gameStore';
 // 1. ADDED AUDIO STORE IMPORT
-import { useAudioStore, intensityToHaptic } from '@/store/audioStore';
+import { useAudioStore, intensityToHaptic, playCombatBgm, stopCombatBgm, setBgmSpeed, playThwackSound } from '@/store/audioStore';
 import { usePoseEngine, MEDIAPIPE_WEBVIEW_HTML } from '@/hooks/usePoseEngine';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { EXERCISES } from '@/constants/game';
@@ -55,6 +55,8 @@ export default function CombatScreen() {
 
   const damageAnim       = useRef(new Animated.Value(0)).current;
   const attackFlashAnim  = useRef(new Animated.Value(0)).current;
+  const hitScaleAnim     = useRef(new Animated.Value(1)).current;
+  const hitRotateAnim    = useRef(new Animated.Value(0)).current;
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevRepsRef      = useRef(0);
   const lastRepTimeRef   = useRef(Date.now()); // For endurance inactivity tracking
@@ -162,6 +164,7 @@ export default function CombatScreen() {
               if (typeof window.speakStart === 'function') window.speakStart('${exName}');
               true;
             `);
+            playCombatBgm(); // Start upbeat music globally
             setIsActive(true);
             setBattleActive();
           }
@@ -200,13 +203,21 @@ export default function CombatScreen() {
       // Inactivity Check for Endurance
       if (battle.enemy.isEndurance && Date.now() - lastRepTimeRef.current > 7000) {
         // 7 seconds without a rep -> DEFEAT
+        stopCombatBgm();
         resolveBattle('defeat');
         router.replace('/post-battle');
         return;
       }
 
       setLocalSeconds((prev) => {
+        if (prev <= 16 && prev > 6) {
+          setBgmSpeed(1.2);
+        } else if (prev <= 6) {
+          setBgmSpeed(1.5);
+        }
+
         if (prev <= 1) {
+          stopCombatBgm();
           if (battle.enemy.isEndurance) {
             resolveBattle('victory');
           } else {
@@ -234,13 +245,19 @@ export default function CombatScreen() {
       lastRepTimeRef.current = Date.now();
       for (let i = 0; i < scored; i++) registerRep();
 
+      playThwackSound(); // THWACK!
+
       damageAnim.setValue(0);
+      hitScaleAnim.setValue(1.4);
+      hitRotateAnim.setValue(1); // 1 = 15deg
       Animated.parallel([
         Animated.sequence([
           Animated.timing(attackFlashAnim, { toValue: 1, duration: 40, useNativeDriver: true }),
           Animated.timing(attackFlashAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
         ]),
         Animated.timing(damageAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+        Animated.spring(hitScaleAnim, { toValue: 1, friction: 3, tension: 40, useNativeDriver: true }),
+        Animated.spring(hitRotateAnim, { toValue: 0, friction: 3, tension: 40, useNativeDriver: true }),
       ]).start();
       
       // 3. UPDATED HAPTICS LOGIC TO USE STORE PREFERENCES
@@ -253,6 +270,7 @@ export default function CombatScreen() {
         setCurrentPhaseIndex(i => i + 1);
       } else if (!battle.enemy.isEndurance && repCount >= (battle.effectiveReps ?? battle.enemy.repsRequired)) {
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+        stopCombatBgm();
         setIsActive(false);
         // Fire victory speech
         webViewRef.current?.injectJavaScript(`
@@ -346,16 +364,37 @@ export default function CombatScreen() {
           <View style={styles.enemyInner}>
             
             {/* ── IMPLEMENTED ENEMY IMAGE ── */}
-            <View style={styles.enemyAvatar}>
-              {battle.enemy.image ? (
-                <Image 
-                  source={battle.enemy.image} 
-                  style={{ width: '100%', height: '100%' }} 
-                  resizeMode="contain" 
-                />
-              ) : (
-                <View style={styles.enemyAvatarInner} />
-              )}
+            <View style={{ position: 'relative' }}>
+              <Animated.View style={[
+                styles.enemyAvatar,
+                {
+                  transform: [
+                    { scale: hitScaleAnim },
+                    { rotate: hitRotateAnim.interpolate({ inputRange: [-1, 1], outputRange: ['-15deg', '15deg'] }) }
+                  ]
+                }
+              ]}>
+                {battle.enemy.image ? (
+                  <Image 
+                    source={battle.enemy.image} 
+                    style={{ width: '100%', height: '100%' }} 
+                    resizeMode="contain" 
+                  />
+                ) : (
+                  <View style={styles.enemyAvatarInner} />
+                )}
+              </Animated.View>
+              <Animated.Text
+                style={[
+                  styles.damageText,
+                  {
+                    opacity: damageOpacity,
+                    transform: [{ translateY: damageTransY }]
+                  }
+                ]}
+              >
+                -1
+              </Animated.Text>
             </View>
             <View>
               <Text style={styles.enemyName}>{battle.enemy.name.toUpperCase().replace(' ','_')}</Text>
@@ -369,7 +408,7 @@ export default function CombatScreen() {
               </View>
             </View>
           </View>
-          <TouchableOpacity style={styles.fleeBtn} onPress={() => { resetBattle(); router.replace('/'); }}>
+          <TouchableOpacity style={styles.fleeBtn} onPress={() => { stopCombatBgm(); resetBattle(); router.replace('/'); }}>
             <Text style={styles.fleeBtnText}>FLEE</Text>
           </TouchableOpacity>
         </View>
@@ -433,6 +472,9 @@ export default function CombatScreen() {
               {inventory.map((inv) => {
                 const item = catalog.find(c => c.id === inv.item_id);
                 if (!item) return null;
+                // Hide items not relevant to direct combat prep (e.g. streak savers)
+                if (item.item_type === 'streak_restore') return null;
+                
                 return (
                   <TouchableOpacity key={inv.item_id} style={styles.itemModalRow} onPress={() => handleUseItem(item.id)}>
                     <View style={styles.itemModalRowLeft}>
@@ -487,6 +529,7 @@ const styles = StyleSheet.create({
   enemyInner: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   enemyAvatar: { width: 48, height: 48, borderWidth: 3, borderColor: '#123441', backgroundColor: '#c6e8f8', padding: 4, overflow: 'hidden', position: 'relative' },
   enemyAvatarInner: { flex: 1, backgroundColor: '#6fd8c8' },
+  damageText: { position: 'absolute', top: 0, left: 16, fontFamily: Fonts.vt323, fontSize: 32, color: AuthColors.crimson, textShadowColor: '#123441', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 1, zIndex: 100 },
   enemyName: { fontFamily: Fonts.pixel, fontSize: 10, color: '#123441', marginBottom: 4 },
   heartsRow: { flexDirection: 'row', gap: 2 },
   hpBg: { width: 96, height: 12, backgroundColor: '#E2E8F0', borderWidth: 2, borderColor: '#123441', marginTop: 4, overflow: 'hidden' },

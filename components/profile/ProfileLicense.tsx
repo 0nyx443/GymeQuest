@@ -15,7 +15,17 @@ const getMilestoneImage = (level: number) => {
 export function ProfileLicense() {
     const avatar = useGameStore((s) => s.avatar);
 
-    const getPercent = (val: number): DimensionValue => `${Math.min((val / 100) * 100, 100)}%`;
+    // Calculate dynamic milestone caps (e.g., 50 -> 100 -> 150 -> 200)
+    const getMilestoneData = (val: number) => {
+        const milestone = Math.ceil((val + 1) / 50) * 50;
+        const prevMilestone = milestone - 50;
+        const currentProgress = val - prevMilestone;
+        const percent = (currentProgress / 50) * 100;
+        return {
+            max: milestone,
+            percent: `${Math.min(Math.max(percent, 0), 100)}%` as DimensionValue
+        };
+    };
 
     const getAge = (birthdayStr?: string) => {
         if (!birthdayStr) return null;
@@ -110,33 +120,36 @@ export function ProfileLicense() {
                 <View style={styles.statBlock}>
                     <View style={styles.statLabels}>
                         <Text style={styles.statName}>STRENGTH (STR)</Text>
-                        <Text style={styles.statValue}>{avatar.stats.strength} / 100</Text>
+                        <Text style={styles.statValue}>{avatar.stats.strength} / {getMilestoneData(avatar.stats.strength).max}</Text>
                     </View>
                     <View style={styles.statBarOuter}>
-                        <View style={[styles.statBarInner, { width: getPercent(avatar.stats.strength), backgroundColor: AuthColors.crimson }]} />
+                        <View style={[styles.statBarInner, { width: getMilestoneData(avatar.stats.strength).percent, backgroundColor: AuthColors.crimson }]} />
                     </View>
+                    <Text style={styles.statDesc}>-1 required rep per 10 STR (Min: 1)</Text>
                 </View>
 
                 {/* AGI */}
                 <View style={styles.statBlock}>
                     <View style={styles.statLabels}>
                         <Text style={styles.statName}>AGILITY (AGI)</Text>
-                        <Text style={styles.statValue}>{avatar.stats.agility} / 100</Text>
+                        <Text style={styles.statValue}>{avatar.stats.agility} / {getMilestoneData(avatar.stats.agility).max}</Text>
                     </View>
                     <View style={styles.statBarOuter}>
-                        <View style={[styles.statBarInner, { width: getPercent(avatar.stats.agility), backgroundColor: '#1DB8A0' }]} />
+                        <View style={[styles.statBarInner, { width: getMilestoneData(avatar.stats.agility).percent, backgroundColor: '#1DB8A0' }]} />
                     </View>
+                    <Text style={styles.statDesc}>+1% more coin drops per 1 AGI</Text>
                 </View>
 
                 {/* STA */}
                 <View style={styles.statBlock}>
                     <View style={styles.statLabels}>
                         <Text style={styles.statName}>STAMINA (STA)</Text>
-                        <Text style={styles.statValue}>{avatar.stats.stamina} / 100</Text>
+                        <Text style={styles.statValue}>{avatar.stats.stamina} / {getMilestoneData(avatar.stats.stamina).max}</Text>
                     </View>
                     <View style={styles.statBarOuter}>
-                        <View style={[styles.statBarInner, { width: getPercent(avatar.stats.stamina), backgroundColor: '#2563EB' }]} />
+                        <View style={[styles.statBarInner, { width: getMilestoneData(avatar.stats.stamina).percent, backgroundColor: '#2563EB' }]} />
                     </View>
+                    <Text style={styles.statDesc}>+1 sec combo timer per 1 STA</Text>
                 </View>
             </View>
 
@@ -198,6 +211,7 @@ const styles = StyleSheet.create({
   statValue: { fontFamily: Fonts.vt323, fontSize: 16, color: AuthColors.navy },
   statBarOuter: { height: 12, backgroundColor: '#D8F2FF', borderWidth: 2, borderColor: AuthColors.navy },
   statBarInner: { height: '100%', borderRightWidth: 2, borderColor: AuthColors.navy },
+  statDesc: { fontFamily: Fonts.pixel, fontSize: 8, color: '#64748B', marginTop: 6 },
   recordsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   recordCard: { width: '48%', backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: AuthColors.navy, padding: 12, shadowColor: AuthColors.navy, shadowOffset: { width: 3, height: 3 }, shadowOpacity: 1, shadowRadius: 0, elevation: 3 },
   recordLabel: { fontFamily: Fonts.pixel, fontSize: 8, color: '#3D494C', marginTop: 8, lineHeight: 12 },

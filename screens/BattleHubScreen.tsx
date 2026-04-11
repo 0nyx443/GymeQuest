@@ -6,19 +6,30 @@
  * a QUESTS button (goes to the full quest list), plus the
  * player avatar, XP bar, and active daily bounty preview.
  */
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, StatusBar, Animated,
+  ScrollView, StatusBar, Animated, Alert
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useGameStore, selectXpProgress } from '@/store/gameStore';
-import { ENEMIES, XP_TABLE, MAX_LEVEL } from '@/constants/game';
+import { ENEMIES, BOSSES, XP_TABLE, MAX_LEVEL } from '@/constants/game';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { AvatarStage } from '@/components/hub/AvatarStage';
 import { ExpBar } from '@/components/hub/ExpBar';
 import { DailyBountyCard } from '@/components/hub/DailyBountyCard';
+
+function getThisMondaysMidnight(): number {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  return new Date(d.setDate(diff)).setHours(0,0,0,0);
+}
+
+function getNextMondaysMidnight(): number {
+  return getThisMondaysMidnight() + 7 * 24 * 60 * 60 * 1000;
+}
 
 interface BattleHubScreenProps {
   onQuestsPress: () => void;
@@ -29,11 +40,43 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
   const avatar     = useGameStore((s) => s.avatar);
   const startBattle = useGameStore((s) => s.startBattle);
   const xpProgress  = useGameStore(selectXpProgress);
+  const showDailyReward = useGameStore((s) => s.showDailyLoginReward);
+  const dailyRewardCoins = useGameStore((s) => s.dailyRewardCoins);
+  const claimDailyReward = useGameStore((s) => s.claimDailyReward);
 
   const battleScaleAnim = useRef(new Animated.Value(1)).current;
   const questScaleAnim  = useRef(new Animated.Value(1)).current;
 
-  const nextLevelXp = avatar.level < MAX_LEVEL ? XP_TABLE[avatar.level] : avatar.xp;
+  const nextLevelXp = avatar.level < MAX_LEVEL ? XP_TABLE[avatar.level + 1] : avatar.xp;
+
+  const [timeLeft, setTimeLeft] = useState('');
+  const [weeklyTimeLeft, setWeeklyTimeLeft] = useState('');
+
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = new Date();
+      const tomorrow = new Date();
+      tomorrow.setHours(24, 0, 0, 0);
+      const diffMs = tomorrow.getTime() - now.getTime();
+      
+      const h = Math.floor(diffMs / (1000 * 60 * 60)).toString().padStart(2, '0');
+      const m = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
+      const s = Math.floor((diffMs % (1000 * 60)) / 1000).toString().padStart(2, '0');
+      
+      setTimeLeft(`${h}h ${m}m ${s}s`);
+
+      const nextMondayTime = getNextMondaysMidnight();
+      const weeklyDiffMs = Math.max(0, nextMondayTime - now.getTime());
+      const dW = Math.floor(weeklyDiffMs / (1000 * 60 * 60 * 24));
+      const hW = Math.floor((weeklyDiffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)).toString().padStart(2, '0');
+      const mW = Math.floor((weeklyDiffMs % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
+      
+      setWeeklyTimeLeft(dW > 0 ? `${dW}d ${hW}h` : `${hW}h ${mW}m`);
+    };
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const animPress = (anim: Animated.Value, callback: () => void) => {
     Animated.sequence([
@@ -57,6 +100,10 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
     });
   }, [onQuestsPress]);
 
+  // Check if endurance battle is available
+  const isEnduranceAvailable = !avatar.lastEnduranceDate || (new Date(avatar.lastEnduranceDate).getTime() < getThisMondaysMidnight());
+  const enduranceBadgeText = isEnduranceAvailable ? 'PLAY' : weeklyTimeLeft;
+
   // Quick stat summary
   const dailyEnemy = ENEMIES.length > 0 ? ENEMIES[0] : null;
 
@@ -75,6 +122,15 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
             <Text style={styles.headerName}>{(avatar.name || 'ADVENTURER').toUpperCase()}</Text>
           </View>
           <View style={styles.headerBadges}>
+            {/* Streak Badge */}
+            {avatar.currentStreak > 0 && (
+              <View style={styles.streakBadge}>
+                <MaterialCommunityIcons name="fire" size={14} color={AuthColors.goldBorder} />
+                <Text style={styles.streakBadgeNum}>{avatar.currentStreak}</Text>
+                <Text style={styles.streakBadgeLbl}>STREAK</Text>
+              </View>
+            )}
+
             {/* Coin Badge */}
             <View style={styles.coinBadge}>
               <MaterialCommunityIcons name="star-four-points" size={12} color="#FDE047" />
@@ -84,7 +140,7 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
 
             {/* Level Badge */}
             <View style={styles.levelBadge}>
-              <Text style={styles.levelBadgeLbl}>LV</Text>
+              <Text style={styles.levelBadgeLbl}>LVL</Text>
               <Text style={styles.levelBadgeNum}>{avatar.level}</Text>
             </View>
           </View>
@@ -98,7 +154,28 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
           currentXp={avatar.xp}
           nextLevelXp={nextLevelXp}
           progress={xpProgress}
+          level={avatar.level}
         />
+
+        {/* ── Daily Reward Card ── */}
+        <View style={styles.dailyRewardCard}>
+          <View style={styles.dailyRewardInfo}>
+            <MaterialCommunityIcons name="treasure-chest" size={24} color={AuthColors.gold} />
+            <View style={{ marginLeft: 12, flex: 1 }}>
+              <Text style={styles.dailyRewardTitle}>DAILY REWARD</Text>
+              <Text style={styles.dailyRewardSub}>
+                {showDailyReward ? `+${dailyRewardCoins} Coins available!` : `Next reward in: ${timeLeft}`}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity 
+            style={[styles.dailyRewardBtn, !showDailyReward && styles.dailyRewardBtnDisabled]} 
+            onPress={showDailyReward ? claimDailyReward : undefined}
+            activeOpacity={showDailyReward ? 0.7 : 1}
+          >
+            <Text style={styles.dailyRewardBtnTxt}>{showDailyReward ? 'CLAIM' : 'CLAIMED'}</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* ── CTA Buttons ── */}
         <View style={styles.ctaRow}>
@@ -128,6 +205,54 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
             </TouchableOpacity>
           </Animated.View>
         </View>
+
+        {/* ── Boss Battles (Endurance Mode) ── */}
+        <TouchableOpacity
+          style={[styles.bossBattleCard, !isEnduranceAvailable && { opacity: 0.6 }]}
+          activeOpacity={0.8}
+          onPress={() => {
+            if (!isEnduranceAvailable) {
+              Alert.alert("Already Played", "You can only play Boss Battles once a week. Come back next Monday!");
+              return;
+            }
+            if (BOSSES && BOSSES.length > 0) {
+              Alert.alert(
+                "Select Training",
+                "Which exercise do you want to train for this Endurance match?",
+                [
+                  {
+                    text: 'Push-ups',
+                    onPress: () => {
+                      const customizedBoss = { ...BOSSES[0], exercise: 'push_up' as any, phases: undefined };
+                      startBattle(customizedBoss);
+                      router.push('/combat');
+                    },
+                  },
+                  {
+                    text: 'Squats',
+                    onPress: () => {
+                      const customizedBoss = { ...BOSSES[0], exercise: 'squat' as any, phases: undefined };
+                      startBattle(customizedBoss);
+                      router.push('/combat');
+                    },
+                  },
+                  { text: 'Cancel', style: 'cancel' }
+                ]
+              );
+            }
+          }}
+        >
+          <View style={styles.bossInfo}>
+            <MaterialCommunityIcons name="skull" size={28} color={AuthColors.crimson} />
+            <View style={{ marginLeft: 12 }}>
+              <Text style={styles.bossTitle}>BOSS BATTLES</Text>
+              <Text style={styles.bossSub}>Endurance Mode</Text>
+            </View>
+          </View>
+          <View style={styles.bossBadge}>
+            <Text style={styles.bossBadgeTxt}>{enduranceBadgeText}</Text>
+          </View>
+        </TouchableOpacity>
 
         {/* ── Daily Bounty ── uses the full DailyBountyCard component ── */}
         {dailyEnemy && (
@@ -160,6 +285,51 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
 }
 
 const styles = StyleSheet.create({
+  dailyRewardCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 3,
+    borderColor: AuthColors.navy,
+    padding: 12,
+    marginBottom: 16,
+    justifyContent: 'space-between',
+    shadowColor: AuthColors.navy,
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+  },
+  dailyRewardInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  dailyRewardTitle: {
+    fontFamily: Fonts.pixel,
+    fontSize: 10,
+    color: AuthColors.navy,
+  },
+  dailyRewardSub: {
+    fontFamily: Fonts.vt323,
+    fontSize: 14,
+    color: '#8D99AE',
+  },
+  dailyRewardBtn: {
+    backgroundColor: AuthColors.gold,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 2,
+    borderColor: AuthColors.navy,
+    marginLeft: 8,
+  },
+  dailyRewardBtnDisabled: {
+    backgroundColor: '#E2E8F0',
+  },
+  dailyRewardBtnTxt: {
+    fontFamily: Fonts.pixel,
+    fontSize: 9,
+    color: AuthColors.navy,
+  },
   screen: { flex: 1, backgroundColor: AuthColors.bg },
   scrollContent: {
     paddingTop: 20,
@@ -190,6 +360,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
+  },
+  streakBadge: {
+    backgroundColor: AuthColors.white,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderWidth: 3,
+    borderColor: AuthColors.navy,
+    shadowColor: AuthColors.navy,
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 5,
+    alignItems: 'center',
+    minWidth: 44,
+  },
+  streakBadgeNum: {
+    fontFamily: Fonts.pixel,
+    fontSize: 14,
+    color: AuthColors.crimson,
+    marginTop: 2,
+  },
+  streakBadgeLbl: {
+    fontFamily: Fonts.vt323,
+    fontSize: 10,
+    color: AuthColors.crimson,
+    letterSpacing: 0,
+    marginTop: 1,
   },
   levelBadge: {
     backgroundColor: AuthColors.navy,
@@ -242,6 +439,50 @@ const styles = StyleSheet.create({
     color: '#FDE047',
     letterSpacing: 1,
     marginTop: 2, // Push text down to align baseline
+  },
+
+  // Boss Battle
+  bossBattleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1E293B',
+    borderWidth: 3,
+    borderColor: AuthColors.crimson,
+    padding: 16,
+    marginBottom: 24,
+    shadowColor: AuthColors.crimson,
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.8,
+    shadowRadius: 0,
+  },
+  bossInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  bossTitle: {
+    fontFamily: Fonts.pixel,
+    fontSize: 14,
+    color: '#FEF08A',
+  },
+  bossSub: {
+    fontFamily: Fonts.vt323,
+    fontSize: 14,
+    color: '#CBD5E1',
+    letterSpacing: 2,
+    marginTop: 2,
+  },
+  bossBadge: {
+    backgroundColor: AuthColors.crimson,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 2,
+    borderColor: '#FEF08A',
+  },
+  bossBadgeTxt: {
+    fontFamily: Fonts.pixel,
+    fontSize: 10,
+    color: '#FFFFFF',
   },
 
   // CTA Buttons
@@ -405,4 +646,5 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
     marginTop: 2,
   },
+    
 });

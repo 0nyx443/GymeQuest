@@ -10,7 +10,7 @@ export function QuestInfoBox() {
                 <Ionicons name="information-circle" size={24} color={AuthColors.crimson} />
             </View>
             <Text style={styles.text}>
-                Quests refresh every 24 hours. Complete bounties to earn XP and Gold and unlock the BATTLE ARENA.
+                Quests refresh every 24 hours. Complete bounties to earn XP and Gold.
             </Text>
         </View>
     );

@@ -31,12 +31,13 @@ export default function CombatScreen() {
   const consumeQueuedItem = useGameStore((s) => s.consumeQueuedItem);
   const applyItemToCurrentBattle = useGameStore((s) => s.applyItemToCurrentBattle);
   const catalog = useGameStore((s) => s.catalog);
+  const avatar  = useGameStore((s) => s.avatar);
 
   const [countdown, setCountdown]         = useState(3);
   const [isActive, setIsActive]           = useState(false);
   const [localSeconds, setLocalSeconds]   = useState(battle?.enemy.timeLimit || 60);
   const [webViewReady, setWebViewReady]   = useState(false);
-  const [showItemModal, setShowItemModal] = useState(inventory.length > 0);
+  const [showItemModal, setShowItemModal] = useState(!battle?.enemy.isEndurance && inventory.length > 0);
 
   // ── Positioning phase state ────────────────────────────────────────────────
   // 'waiting'  = overlay shown, waiting for user to get into position
@@ -56,13 +57,20 @@ export default function CombatScreen() {
   const attackFlashAnim  = useRef(new Animated.Value(0)).current;
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevRepsRef      = useRef(0);
+  const lastRepTimeRef   = useRef(Date.now()); // For endurance inactivity tracking
   const webViewRef       = useRef<WebView>(null);
 
-  const exercise    = battle?.enemy.exercise ?? 'push_up';
+  const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0);
+  const phaseList = battle?.enemy.phases;
+  const hasPhases = battle?.enemy.isEndurance && phaseList && phaseList.length > 0;
+  const currentPhase = hasPhases ? phaseList[currentPhaseIndex % phaseList.length] : null;
+
+  const exercise    = currentPhase ? currentPhase.exercise : (battle?.enemy.exercise ?? 'push_up');
+  const phaseGoal   = currentPhase ? currentPhase.reps : (battle?.effectiveReps ?? battle?.enemy.repsRequired ?? 10);
   const exerciseDef = EXERCISES[exercise];
 
   const {
-    repState, repCount, isBodyVisible, isPositionReady, processPoseData,
+    repState, repCount, isBodyVisible, isPositionReady, formFeedback, processPoseData,
   } = usePoseEngine(exercise, isActive);
 
   // 2. ADDED AUDIO PREFS INITIALIZATION
@@ -183,11 +191,27 @@ export default function CombatScreen() {
 
   // ── Guaranteed local timer ─────────────────────────────────────────────────
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive || !battle) return;
+
+    // Reset inactivity timer when starting
+    lastRepTimeRef.current = Date.now();
+
     timerIntervalRef.current = setInterval(() => {
+      // Inactivity Check for Endurance
+      if (battle.enemy.isEndurance && Date.now() - lastRepTimeRef.current > 7000) {
+        // 7 seconds without a rep -> DEFEAT
+        resolveBattle('defeat');
+        router.replace('/post-battle');
+        return;
+      }
+
       setLocalSeconds((prev) => {
         if (prev <= 1) {
-          resolveBattle('defeat');
+          if (battle.enemy.isEndurance) {
+            resolveBattle('victory');
+          } else {
+            resolveBattle('defeat');
+          }
           router.replace('/post-battle');
           return 0;
         }
@@ -195,14 +219,19 @@ export default function CombatScreen() {
       });
     }, 1000);
     return () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); };
-  }, [isActive, resolveBattle, router]);
+  }, [isActive, resolveBattle, router, battle]);
 
   // ── Rep detection & flash ──────────────────────────────────────────────────
   useEffect(() => {
     if (!isActive || !battle) return;
-    if (repCount > prevRepsRef.current) {
+
+    if (repCount < prevRepsRef.current) {
+      prevRepsRef.current = repCount;
+      lastRepTimeRef.current = Date.now();
+    } else if (repCount > prevRepsRef.current) {
       const scored = repCount - prevRepsRef.current;
       prevRepsRef.current = repCount;
+      lastRepTimeRef.current = Date.now();
       for (let i = 0; i < scored; i++) registerRep();
 
       damageAnim.setValue(0);
@@ -220,7 +249,9 @@ export default function CombatScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle[style]).catch(() => {});
       }
 
-      if (repCount >= (battle.effectiveReps ?? battle.enemy.repsRequired)) {
+      if (hasPhases && repCount >= phaseGoal) {
+        setCurrentPhaseIndex(i => i + 1);
+      } else if (!battle.enemy.isEndurance && repCount >= (battle.effectiveReps ?? battle.enemy.repsRequired)) {
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         setIsActive(false);
         // Fire victory speech
@@ -240,7 +271,9 @@ export default function CombatScreen() {
     resolveBattle, 
     router, 
     audioPrefs.repVibrationEnabled, 
-    audioPrefs.repVibrationIntensity
+    audioPrefs.repVibrationIntensity,
+    hasPhases,
+    phaseGoal
   ]); // Added audio prefs to dependency array
 
   if (!permission?.granted) {
@@ -340,11 +373,40 @@ export default function CombatScreen() {
             <Text style={styles.fleeBtnText}>FLEE</Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.timerCard}>
-          <Text style={styles.timerLabel}>TIMER</Text>
-          <Text style={styles.timerValue}>{fmtTime(localSeconds)}</Text>
+        <View style={styles.rightHud}>
+          <View style={styles.streakBadge}>
+            <MaterialIcons name="local-fire-department" size={14} color={AuthColors.gold} />
+            <Text style={styles.streakText}>{avatar.currentStreak}</Text>
+          </View>
+          <View style={styles.timerCard}>
+            <Text style={styles.timerLabel}>TIMER</Text>
+            <Text style={styles.timerValue}>{fmtTime(localSeconds)}</Text>
+          </View>
         </View>
       </View>
+
+      {/* ── ALERTS / REPS HUD ── */}
+      <View style={styles.repRow} pointerEvents="none">
+        <View style={styles.repsLeftCard}>
+          <Text style={styles.repsLeftVal}>
+            {battle.enemy.isEndurance ? '∞' : (battle.effectiveReps ?? battle.enemy.repsRequired)}
+          </Text>
+          <View style={styles.divThin} />
+          <Text style={styles.repsLeftLbl}>GOAL</Text>
+        </View>
+        <View style={styles.mainRepCard}>
+          <Text style={styles.mainRepVal}>{repCount}</Text>
+          <View style={styles.divThick} />
+          <Text style={styles.mainRepLbl}>REPS</Text>
+        </View>
+      </View>
+
+      {formFeedback && isActive && (
+        <View style={styles.formFeedbackBadge}>
+          <MaterialIcons name="error-outline" size={14} color={AuthColors.white} />
+          <Text style={styles.formFeedbackText}>{formFeedback}</Text>
+        </View>
+      )}
 
       {battle?.activeEffect && (
         <View style={styles.activeEffectBadge}>
@@ -431,6 +493,9 @@ const styles = StyleSheet.create({
   hpFill: { height: '100%', backgroundColor: AuthColors.crimson },
   fleeBtn: { backgroundColor: '#E2E8F0', borderWidth: 3, borderColor: '#123441', paddingHorizontal: 16, paddingVertical: 4 },
   fleeBtnText: { fontFamily: Fonts.pixel, fontSize: 10, color: '#123441' },
+  rightHud: { gap: 8 },
+  streakBadge: { backgroundColor: AuthColors.navy, borderWidth: 3, borderColor: AuthColors.gold, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 4, gap: 4 },
+  streakText: { fontFamily: Fonts.pixel, fontSize: 10, color: AuthColors.gold, paddingTop: 2 },
   timerCard: { backgroundColor: AuthColors.white, borderWidth: 3, borderColor: '#123441', padding: 8, minWidth: 70, alignItems: 'center', justifyContent: 'center' },
   timerLabel: { fontFamily: Fonts.vt323, fontSize: 12, color: '#123441', marginBottom: 2 },
   timerValue: { fontFamily: Fonts.pixel, fontSize: 10, color: AuthColors.crimson },
@@ -583,5 +648,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: AuthColors.navy,
     letterSpacing: 2,
+  },
+  formFeedbackBadge: {
+    position: 'absolute',
+    bottom: 220,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(230, 57, 70, 0.9)',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+    zIndex: 50,
+  },
+  formFeedbackText: {
+    fontFamily: Fonts.pixel,
+    fontSize: 10,
+    color: '#FFFFFF',
+    top: 1, // baseline tweak
   },
 });

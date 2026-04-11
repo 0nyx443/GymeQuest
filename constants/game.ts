@@ -80,6 +80,8 @@ export interface Enemy {
   lore: string;
   color: string;
   image?: any;              // Added to support dynamic images
+  isEndurance?: boolean;    // NEW: Endurance mode flag
+  phases?: { exercise: ExerciseType; reps: number }[]; // Ordered sequence of exercises for boss fights
 }
 
 export const ENEMIES: Enemy[] = [
@@ -89,8 +91,8 @@ export const ENEMIES: Enemy[] = [
     title: 'Forest Ambusher',
     hp: 100,
     exercise: 'push_up',
-    repsRequired: 1,
-    timeLimit: 90,
+    repsRequired: 5,
+    timeLimit: 60,
     xpReward: 120,
     coinReward: 50,
     statBoosts: { strength: 2 },
@@ -105,8 +107,8 @@ export const ENEMIES: Enemy[] = [
     title: 'Gate Warden',
     hp: 250,
     exercise: 'squat',
-    repsRequired: 20,
-    timeLimit: 120,
+    repsRequired: 15,
+    timeLimit: 90,
     xpReward: 280,
     coinReward: 120,
     statBoosts: { stamina: 3, strength: 1 },
@@ -121,8 +123,8 @@ export const ENEMIES: Enemy[] = [
     title: 'Void Disciple',
     hp: 400,
     exercise: 'sit_up',
-    repsRequired: 25,
-    timeLimit: 150,
+    repsRequired: 20,
+    timeLimit: 120,
     xpReward: 450,
     coinReward: 200,
     statBoosts: { agility: 4, stamina: 2 },
@@ -137,9 +139,10 @@ export const ENEMIES: Enemy[] = [
     title: 'Sky Sovereign',
     hp: 600,
     exercise: 'pull_up',
-    repsRequired: 15,
-    timeLimit: 180,
+    repsRequired: 5,
+    timeLimit: 120,
     xpReward: 700,
+    coinReward: 350,
     statBoosts: { strength: 5, agility: 2 },
     difficulty: 4,
     lore: 'Young but catastrophically powerful. Its breath melts stone.',
@@ -152,14 +155,41 @@ export const ENEMIES: Enemy[] = [
     title: 'World Ender',
     hp: 1000,
     exercise: 'push_up',
-    repsRequired: 40,
-    timeLimit: 240,
+    repsRequired: 30,
+    timeLimit: 150,
     xpReward: 1200,
+    coinReward: 600,
     statBoosts: { strength: 6, stamina: 5, agility: 3 },
     difficulty: 5,
     lore: 'A primordial titan. The mountains tremble at its footsteps.',
     color: '#8B5E00',
     image: require('@/assets/images/ancient_colossus.png'),
+  },
+];
+
+// ── ENDURANCE BOSSES ──
+export const BOSSES: Enemy[] = [
+  {
+    id: 'titan_overlord',
+    name: 'Titan Overlord',
+    title: 'The Unending Trial',
+    hp: 9999,
+    exercise: 'squat', // Fallback, uses phases mostly
+    repsRequired: 9999, // limitless
+    timeLimit: 300, // 5 minutes timer
+    xpReward: 0,
+    coinReward: 0,
+    statBoosts: { strength: 10, stamina: 10 },
+    difficulty: 5,
+    lore: 'Endurance Boss. The more reps you complete before time runs out, the greater the rewards. If you stop moving, you lose!',
+    color: '#2D1B4E',
+    isEndurance: true,
+    phases: [
+      { exercise: 'push_up', reps: 10 },
+      { exercise: 'squat', reps: 10 },
+      { exercise: 'sit_up', reps: 10 },
+      // { exercise: 'pull_up', reps: 10 }, // Assuming we want them looping
+    ] // In combat screen, we will loop these phases
   },
 ];
 

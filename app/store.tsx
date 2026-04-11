@@ -5,5 +5,5 @@ import StoreScreen from '@/screens/StoreScreen';
 export default function StoreRoute() {
   const router = useRouter();
 
-  return <StoreScreen onBack={() => router.back()} />;
+  return <StoreScreen />;
 }

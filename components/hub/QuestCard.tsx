@@ -13,6 +13,7 @@ interface QuestCardProps {
         repsRequired: number;
         exercise: string;
         xpReward: number;
+        coinReward?: number;
         image?: any;
         color?: string;
     };

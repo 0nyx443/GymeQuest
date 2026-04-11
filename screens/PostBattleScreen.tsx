@@ -83,7 +83,7 @@ export default function PostBattleScreen() {
   const repsRequired = battle.enemy.repsRequired;
 
   if (isVictory) {
-    const goldGained = (battle.enemy.coinReward || 50) + repsCompleted;
+    const goldGained = battle.enemy.isEndurance ? Math.floor(repsCompleted * 1.5) : ((battle.enemy.coinReward || 50) + repsCompleted);
 
     return (
       <View style={styles.vScreen}>
@@ -91,7 +91,7 @@ export default function PostBattleScreen() {
 
         <Animated.View style={{ flex: 1, zIndex: 10, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
           <ScrollView contentContainerStyle={styles.mainWrap} showsVerticalScrollIndicator={false}>
-            <Text style={styles.vTitle}>VICTORY!</Text>
+            <Text style={styles.vTitle}>{battle.enemy.isEndurance ? "SURVIVED!" : "VICTORY!"}</Text>
 
             <View style={styles.vAvatarBlock}>
               <Image source={getVictoryImage(avatarLevel)} style={styles.vAvatarImage} resizeMode="contain" />
@@ -102,7 +102,7 @@ export default function PostBattleScreen() {
               <View style={styles.vRewardHeader}>
                 <MaterialIcons name="inventory" size={32} color={AuthColors.gold} />
                 <View>
-                  <Text style={styles.vRewardSub}>QUEST COMPLETE</Text>
+                  <Text style={styles.vRewardSub}>{battle.enemy.isEndurance ? 'ENDURANCE COMPLETE' : 'QUEST COMPLETE'}</Text>
                   <Text style={styles.vRewardTitle}>{battle.enemy.name.toUpperCase()}</Text>
                 </View>
               </View>

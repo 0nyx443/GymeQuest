@@ -22,7 +22,10 @@ export async function fetchStoreCatalog(): Promise<CatalogItem[]> {
     console.error('[inventory] Error fetching store_items:', error.message);
     return [];
   }
-  return data as CatalogItem[];
+  // Filter out any accidentally created test items and sort by price
+  return (data as CatalogItem[])
+    .filter(item => item.name !== 'Item Name')
+    .sort((a, b) => a.price - b.price);
 }
 
 /** Fetch current inventory from user_inventory */

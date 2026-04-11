@@ -6,13 +6,17 @@ interface ExpBarProps {
     currentXp: number;
     nextLevelXp: number;
     progress: number; // 0 to 1
+    level?: number;
 }
 
-export function ExpBar({ currentXp, nextLevelXp, progress }: ExpBarProps) {
+export function ExpBar({ currentXp, nextLevelXp, progress, level }: ExpBarProps) {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.xpText}>XP: {currentXp} / {nextLevelXp}</Text>
+                {level !== undefined && (
+                    <Text style={styles.levelText}>LV {level}</Text>
+                )}
             </View>
             <View style={styles.barOuter}>
                 <View style={[styles.barInner, { width: `${progress * 100}%` }]} />
@@ -32,6 +36,13 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     xpText: {
+        fontFamily: Fonts.vt323,
+        fontSize: 18,
+        fontWeight: 'bold',
+        letterSpacing: 0.5,
+        color: AuthColors.navy,
+    },
+    levelText: {
         fontFamily: Fonts.vt323,
         fontSize: 18,
         fontWeight: 'bold',

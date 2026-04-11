@@ -79,6 +79,10 @@ export default function QuestScreen({ onBack }: QuestScreenProps) {
               />
             );
           })}
+
+          <View style={styles.upcomingBox}>
+            <Text style={styles.upcomingText}>More upcoming quests...</Text>
+          </View>
         </View>
 
         <QuestInfoBox />
@@ -116,5 +120,21 @@ const styles = StyleSheet.create({
   },
   list: {
     marginBottom: 16,
+  },
+  upcomingBox: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#F8FAFC',
+    borderStyle: 'dashed',
+    marginTop: 16,
+  },
+  upcomingText: {
+    fontFamily: Fonts.pixel,
+    fontSize: 10,
+    color: '#94A3B8',
+    letterSpacing: 2,
   },
 });

@@ -36,7 +36,7 @@ export default function DashboardScreen() {
   }, [startBattle, router]);
 
   // Replaced the hardcoded 10 with MAX_LEVEL so it scales with your 1.2M XP
-  const nextLevelXp = avatar.level < MAX_LEVEL ? XP_TABLE[avatar.level] : avatar.xp;
+  const nextLevelXp = avatar.level < MAX_LEVEL ? XP_TABLE[avatar.level + 1] : avatar.xp;
 
   return (
     <View style={styles.screen}>
@@ -63,6 +63,7 @@ export default function DashboardScreen() {
           currentXp={avatar.xp}
           nextLevelXp={nextLevelXp}
           progress={xpProgress}
+          level={avatar.level}
         />
 
         <StatGrid

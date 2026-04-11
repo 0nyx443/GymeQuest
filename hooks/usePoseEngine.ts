@@ -20,6 +20,7 @@ export interface PoseEngineOutput {
   repState: RepState;
   repCount: number;
   isBodyVisible: boolean;
+  isPositionReady: boolean;  // full-body check for pre-battle positioning
   debugMsg: string;
   processPoseData: (jsonString: string) => void;
 }
@@ -28,7 +29,10 @@ export function usePoseEngine(exercise: ExerciseType, active: boolean): PoseEngi
   const [repCount, setRepCount]         = useState(0);
   const [repState, setRepState]         = useState<RepState>('up');
   const [primaryAngle, setPrimaryAngle] = useState(180);
-  const [isBodyVisible, setIsBodyVisible] = useState(true);
+  // Start as false — the WebView must confirm body is visible, not the default
+  const [isBodyVisible, setIsBodyVisible] = useState(false);
+  // Full-body check for positioning phase (requires shoulders + hips + knees)
+  const [isPositionReady, setIsPositionReady] = useState(false);
   const [debugMsg, setDebugMsg]         = useState('Booting AI Engine...');
 
   const lastTextRef = useRef('');
@@ -58,12 +62,8 @@ export function usePoseEngine(exercise: ExerciseType, active: boolean): PoseEngi
       const parsed = JSON.parse(jsonString);
 
       if (parsed.type === 'SPEAK') {
-        // Fire both TTS and/or vibration depending on prefs
         handleSpeakRequest(parsed.text, parsed.priority ?? false);
-        if (parsed.priority === false) {
-          // Form cue — also vibrate if enabled
-          handleVibrateRequest();
-        }
+        if (parsed.priority === false) handleVibrateRequest();
         return;
       }
 
@@ -72,18 +72,24 @@ export function usePoseEngine(exercise: ExerciseType, active: boolean): PoseEngi
         return;
       }
 
-      if (!active || parsed.type !== 'POSE_UPDATE') return;
+      if (parsed.type !== 'POSE_UPDATE') return;
 
-      setPrimaryAngle(parsed.angle);
-      setRepState(parsed.state);
-      setRepCount(parsed.reps);
-      setIsBodyVisible(parsed.visible);
+      // Always update visibility — needed for positioning phase (active may be false)
+      setIsBodyVisible(parsed.visible ?? false);
+      setIsPositionReady(parsed.fullBody ?? false);
+
+      // Only update rep-tracking state when battle is actually active
+      if (active) {
+        setPrimaryAngle(parsed.angle);
+        setRepState(parsed.state);
+        setRepCount(parsed.reps);
+      }
     } catch {
       // ignore frame errors
     }
   }, [active, handleSpeakRequest, handleVibrateRequest]);
 
-  return { primaryAngle, repState, repCount, isBodyVisible, processPoseData, debugMsg };
+  return { primaryAngle, repState, repCount, isBodyVisible, isPositionReady, processPoseData, debugMsg };
 }
 
 // ─── MediaPipe WebView HTML ───────────────────────────────────────────────────
@@ -218,10 +224,20 @@ window.speakVictory = function() {
   speak('Quest complete! You defeated the enemy!', true);
 };
 
-// ── NEW: This function was missing! ──
+// Spoken after countdown ends — reinforces what to do
 window.speakStart = function(exerciseName, enemyName) {
   var target = (enemyName && enemyName !== 'undefined') ? enemyName : 'the enemy';
-  speak('Prepare for battle! Defeat ' + target + ' by doing ' + exerciseName + 's.', true);
+  speak('Defeat ' + target + ' by doing ' + exerciseName + 's. Go!', true);
+};
+
+// Spoken as soon as camera is ready — guides user into starting position
+window.speakGetInPosition = function(exerciseName) {
+  speak('Get in position for ' + exerciseName + 's. Make sure your full body is visible in the camera.', true);
+};
+
+// Spoken once body is confirmed in correct position
+window.speakBattleStart = function() {
+  speak('Great! Battle starts now. Get ready!', true);
 };
 
 var bootInterval = setInterval(function() {
@@ -273,8 +289,17 @@ function initPose() {
       var lms     = results.poseLandmarks;
       var visible = cfg.getVisible(lms);
 
+      // Full-body check for positioning phase: requires shoulders + hips + knees
+      // Prevents face-only camera views from passing the 'get in position' gate
+      function isFullBodyReady() {
+        var hasShoulder = Math.max(lms[11].visibility, lms[12].visibility) > 0.5;
+        var hasHip      = Math.max(lms[23].visibility, lms[24].visibility) > 0.4;
+        var hasKnee     = Math.max(lms[25].visibility, lms[26].visibility) > 0.3;
+        return hasShoulder && hasHip && hasKnee;
+      }
+
       if (!visible) {
-        sendUpdate({type:'POSE_UPDATE',angle:180,state:currentState,reps:localRepCount,visible:false});
+        sendUpdate({type:'POSE_UPDATE',angle:180,state:currentState,reps:localRepCount,visible:false,fullBody:isFullBodyReady()});
         return;
       }
 
@@ -299,7 +324,7 @@ function initPose() {
         if (badFormFrames > 0) badFormFrames--;
       }
 
-      sendUpdate({type:'POSE_UPDATE',angle:Math.round(angle),state:currentState,reps:localRepCount,visible:visible});
+      sendUpdate({type:'POSE_UPDATE',angle:Math.round(angle),state:currentState,reps:localRepCount,visible:visible,fullBody:isFullBodyReady()});
     });
 
     pose.initialize().then(function() {

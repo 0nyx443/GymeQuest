@@ -13,6 +13,9 @@ import { usePoseEngine, MEDIAPIPE_WEBVIEW_HTML } from '@/hooks/usePoseEngine';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { EXERCISES } from '@/constants/game';
 
+// Each tick = 100ms; body must be visible for 30 ticks (3 seconds) to confirm
+const POSITION_TICKS_NEEDED = 30;
+
 export default function CombatScreen() {
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
@@ -22,13 +25,27 @@ export default function CombatScreen() {
   const resolveBattle = useGameStore((s) => s.resolveBattle);
   const setBattleActive = useGameStore((s) => s.setBattleActive);
 
-  const [countdown, setCountdown]       = useState(3);
-  const [isActive, setIsActive]         = useState(false);
-  const [localSeconds, setLocalSeconds] = useState(battle?.enemy.timeLimit || 60);
-  const [webViewReady, setWebViewReady] = useState(false);
+  const [countdown, setCountdown]         = useState(3);
+  const [isActive, setIsActive]           = useState(false);
+  const [localSeconds, setLocalSeconds]   = useState(battle?.enemy.timeLimit || 60);
+  const [webViewReady, setWebViewReady]   = useState(false);
 
-  const damageAnim      = useRef(new Animated.Value(0)).current;
-  const attackFlashAnim = useRef(new Animated.Value(0)).current;
+  // ── Positioning phase state ────────────────────────────────────────────────
+  // 'waiting'  = overlay shown, waiting for user to get into position
+  // 'detected' = body detected, filling confirm bar
+  // 'ready'    = confirmed, starting countdown
+  const [positionPhase, setPositionPhase] = useState<'waiting' | 'detected' | 'ready'>('waiting');
+  const [detectProgress, setDetectProgress] = useState(0); // 0-100
+  // Timer-based approach: poll isBodyVisible every 100ms via ref
+  const confirmTicksRef    = useRef(0);
+  const isBodyVisibleRef   = useRef(false);   // mirror of isBodyVisible for the interval
+  const positionReadyRef   = useRef(false);   // prevents double-firing
+  const positionIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const positionPulseAnim  = useRef(new Animated.Value(1)).current;
+  const positionFadeAnim   = useRef(new Animated.Value(1)).current;
+
+  const damageAnim       = useRef(new Animated.Value(0)).current;
+  const attackFlashAnim  = useRef(new Animated.Value(0)).current;
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevRepsRef      = useRef(0);
   const webViewRef       = useRef<WebView>(null);
@@ -37,45 +54,110 @@ export default function CombatScreen() {
   const exerciseDef = EXERCISES[exercise];
 
   const {
-    repState, repCount, isBodyVisible, processPoseData,
+    repState, repCount, isBodyVisible, isPositionReady, processPoseData,
   } = usePoseEngine(exercise, isActive);
 
   // 2. ADDED AUDIO PREFS INITIALIZATION
   const audioPrefs = useAudioStore();
 
-  // ── Inject exercise type as soon as WebView is ready ──────────────────────
+  // ── Inject exercise type & speak "get in position" when WebView is ready ──
   useEffect(() => {
     if (!webViewReady || !webViewRef.current) return;
     const exerciseName = exercise.replace('_', ' ');
-    // setExerciseType configures the rep logic; speakStart fires the opening cue
+    // setExerciseType configures the rep logic
+    // speakGetInPosition tells the user to prepare their stance
     webViewRef.current.injectJavaScript(`
       (function() {
         if (typeof window.setExerciseType === 'function') {
           window.setExerciseType('${exercise}');
         }
-        if (typeof window.speakStart === 'function') {
-          window.speakStart('${exerciseName}');
+        if (typeof window.speakGetInPosition === 'function') {
+          window.speakGetInPosition('${exerciseName}');
         }
       })();
       true;
     `);
+
+    // Start the positioning pulsing animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(positionPulseAnim, { toValue: 1.08, duration: 700, useNativeDriver: true }),
+        Animated.timing(positionPulseAnim, { toValue: 1.0,  duration: 700, useNativeDriver: true }),
+      ])
+    ).start();
   }, [webViewReady, exercise]);
 
-  // ── Countdown ─────────────────────────────────────────────────────────────
+  // ── Keep isBodyVisibleRef in sync so the interval can read it ─────────────
+  // Uses isPositionReady (shoulders+hips+knees) not just isBodyVisible (shoulders only),
+  // so face-only camera views don't falsely complete the positioning gate.
   useEffect(() => {
-    if (!battle || battle.phase !== 'countdown') return;
-    let tick = 3;
-    const cd = setInterval(() => {
-      tick--;
-      setCountdown(tick);
-      if (tick <= 0) {
-        clearInterval(cd);
-        setIsActive(true);
-        setBattleActive();
+    isBodyVisibleRef.current = isPositionReady;
+  }, [isPositionReady]);
+
+  // ── Positioning timer — polls every 100ms ──────────────────────────────────
+  // useEffect(isBodyVisible) only fires on value CHANGES, not per frame.
+  // A setInterval guarantees steady ticking regardless of React re-renders.
+  useEffect(() => {
+    if (!webViewReady) return;
+    if (positionReadyRef.current) return; // already confirmed
+
+    positionIntervalRef.current = setInterval(() => {
+      if (positionReadyRef.current) {
+        clearInterval(positionIntervalRef.current!);
+        return;
       }
-    }, 1000);
-    return () => clearInterval(cd);
-  }, [battle?.phase, setBattleActive]);
+
+      if (isBodyVisibleRef.current) {
+        confirmTicksRef.current = Math.min(confirmTicksRef.current + 1, POSITION_TICKS_NEEDED);
+      } else {
+        // Decay 2× faster when body is lost
+        confirmTicksRef.current = Math.max(0, confirmTicksRef.current - 2);
+      }
+
+      const progress = Math.round((confirmTicksRef.current / POSITION_TICKS_NEEDED) * 100);
+      setDetectProgress(progress);
+      setPositionPhase(isBodyVisibleRef.current && confirmTicksRef.current > 0 ? 'detected' : 'waiting');
+
+      if (confirmTicksRef.current >= POSITION_TICKS_NEEDED) {
+        // ✅ Confirmed! Clean up.
+        clearInterval(positionIntervalRef.current!);
+        positionReadyRef.current = true;
+        setPositionPhase('ready');
+        positionPulseAnim.stopAnimation();
+
+        webViewRef.current?.injectJavaScript(`
+          if (typeof window.speakBattleStart === 'function') window.speakBattleStart();
+          true;
+        `);
+        Animated.timing(positionFadeAnim, { toValue: 0, duration: 600, useNativeDriver: true }).start();
+
+        // ── Inline countdown ────────────────────────────────────────────────
+        // Do NOT drive this through a positionPhase useEffect — that causes the
+        // tick to restart every time React re-renders with positionPhase→'ready'.
+        // Instead we fire the interval directly from here (one guaranteed start).
+        let tick = 3;
+        const countdownInterval = setInterval(() => {
+          tick--;
+          setCountdown(tick);
+          if (tick <= 0) {
+            clearInterval(countdownInterval);
+            const exName = exercise.replace('_', ' ');
+            webViewRef.current?.injectJavaScript(`
+              if (typeof window.speakStart === 'function') window.speakStart('${exName}');
+              true;
+            `);
+            setIsActive(true);
+            setBattleActive();
+          }
+        }, 1000);
+      }
+    }, 100);
+
+    return () => {
+      if (positionIntervalRef.current) clearInterval(positionIntervalRef.current);
+    };
+  }, [webViewReady]);
+
 
   // ── Guaranteed local timer ─────────────────────────────────────────────────
   useEffect(() => {
@@ -297,8 +379,44 @@ export default function CombatScreen() {
         </View>
       )}
 
+      {/* ── POSITIONING OVERLAY ── Shown until user is in position ── */}
+      {positionPhase !== 'ready' && !isActive && (
+        <Animated.View style={[styles.positioningOverlay, { opacity: positionFadeAnim }]} pointerEvents="none">
+          {/* Pulsing icon */}
+          <Animated.Text style={[styles.positioningIcon, { transform: [{ scale: positionPulseAnim }] }]}>
+            {exerciseDef?.emoji ?? '💪'}
+          </Animated.Text>
+
+          <Text style={styles.positioningTitle}>GET IN POSITION</Text>
+          <Text style={styles.positioningExercise}>
+            {exerciseDef?.label?.toUpperCase() ?? exercise.toUpperCase()}
+          </Text>
+          <Text style={styles.positioningHint}>
+            {positionPhase === 'waiting'
+              ? 'Step back so your full body is visible'
+              : '✓ Body detected — hold your position!'}
+          </Text>
+
+          {/* Progress bar */}
+          <View style={styles.detectBarBg}>
+            <Animated.View
+              style={[
+                styles.detectBarFill,
+                {
+                  width: `${detectProgress}%` as any,
+                  backgroundColor: positionPhase === 'detected' ? '#00C9A7' : '#E63946',
+                },
+              ]}
+            />
+          </View>
+          <Text style={styles.detectBarLabel}>
+            {positionPhase === 'detected' ? `${detectProgress}% — almost there…` : 'Waiting for body detection'}
+          </Text>
+        </Animated.View>
+      )}
+
       {/* ── COUNTDOWN OVERLAY ── */}
-      {!isActive && countdown > 0 && (
+      {positionPhase === 'ready' && !isActive && countdown > 0 && (
         <View style={styles.countdownOverlay} pointerEvents="none">
           <Text style={styles.countdownNum}>{countdown}</Text>
           <Text style={styles.countdownSub}>GET READY</Text>
@@ -380,6 +498,66 @@ const styles = StyleSheet.create({
   comboCard: { borderWidth: 3, borderColor: '#123441', shadowColor: '#123441', shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0, padding: 8, transform: [{ rotate: '12deg' }] },
   comboText: { fontFamily: Fonts.pixel, fontSize: 10, color: AuthColors.white },
 
+  // ── Positioning overlay ──────────────────────────────────────────────────
+  positioningOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,10,20,0.88)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+    paddingHorizontal: 32,
+  },
+  positioningIcon: { fontSize: 72, marginBottom: 16 },
+  positioningTitle: {
+    fontFamily: Fonts.pixel,
+    fontSize: 18,
+    color: '#FFFFFF',
+    letterSpacing: 4,
+    textAlign: 'center',
+    marginBottom: 6,
+    textShadowColor: '#00C9A7',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
+  },
+  positioningExercise: {
+    fontFamily: Fonts.vt323,
+    fontSize: 20,
+    color: '#00C9A7',
+    letterSpacing: 6,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  positioningHint: {
+    fontFamily: Fonts.vt323,
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.75)',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  detectBarBg: {
+    width: '85%',
+    height: 14,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 7,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  detectBarFill: {
+    height: '100%',
+    borderRadius: 7,
+  },
+  detectBarLabel: {
+    fontFamily: Fonts.vt323,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.55)',
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
+
+  // ── Countdown ────────────────────────────────────────────────────────────
   countdownOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(18,52,65,0.85)', justifyContent: 'center', alignItems: 'center', zIndex: 100 },
   countdownNum: { fontFamily: Fonts.pixel, fontSize: 100, color: AuthColors.bg, textShadowColor: AuthColors.navy, textShadowOffset: { width: 8, height: 8 }, textShadowRadius: 0 },
   countdownSub: { fontFamily: Fonts.vt323, fontSize: 24, letterSpacing: 8, color: AuthColors.crimson, marginTop: 16 },

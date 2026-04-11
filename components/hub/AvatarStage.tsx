@@ -91,6 +91,9 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
         height: 250,
         width: '100%',
+        backgroundColor: '#C6E8F8', // Added per advice to contain the scene
+        borderWidth: 3,
+        borderColor: AuthColors.navy,
         marginBottom: 32,
         position: 'relative',
         overflow: 'hidden',

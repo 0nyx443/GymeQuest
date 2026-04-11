@@ -150,6 +150,8 @@ const styles = StyleSheet.create({
         borderColor: AuthColors.navy,
         alignItems: 'center',
         justifyContent: 'center',
+        overflow: 'hidden',
+        position: 'relative',
     },
     lockedImageBox: {
         backgroundColor: '#E2E8F0',

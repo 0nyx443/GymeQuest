@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
   topHud: { position: 'absolute', top: 64, left: '50%', transform: [{ translateX: -190 }], width: 380, flexDirection: 'row', alignItems: 'flex-start', gap: 8, zIndex: 40 },
   enemyCard: { flex: 1, backgroundColor: AuthColors.white, borderWidth: 3, borderColor: '#123441', padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   enemyInner: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  enemyAvatar: { width: 48, height: 48, borderWidth: 3, borderColor: '#123441', backgroundColor: '#c6e8f8', padding: 4 },
+  enemyAvatar: { width: 48, height: 48, borderWidth: 3, borderColor: '#123441', backgroundColor: '#c6e8f8', padding: 4, overflow: 'hidden', position: 'relative' },
   enemyAvatarInner: { flex: 1, backgroundColor: '#6fd8c8' },
   enemyName: { fontFamily: Fonts.pixel, fontSize: 10, color: '#123441', marginBottom: 4 },
   heartsRow: { flexDirection: 'row', gap: 2 },

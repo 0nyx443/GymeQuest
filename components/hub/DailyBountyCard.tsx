@@ -152,6 +152,8 @@ const styles = StyleSheet.create({
         borderColor: AuthColors.navy,
         justifyContent: 'center',
         alignItems: 'center',
+        overflow: 'hidden',
+        position: 'relative',
     },
     image: {
         width: '100%',

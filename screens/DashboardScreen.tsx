@@ -73,7 +73,8 @@ export default function DashboardScreen() {
 
         {/* Updated to pass the full Enemy object so the Timer card works */}
         <DailyBountyCard
-          enemy={ENEMIES && ENEMIES.length > 1 ? ENEMIES[1] : null}
+          enemy={ENEMIES && ENEMIES.length > 1 ? ENEMIES[1] : (ENEMIES[0] as any)}
+          isCompleted={ENEMIES.length > 1 ? avatar.defeatedEnemies.includes(ENEMIES[1].id) : false}
           onPress={handleQuestPress}
         />
       </ScrollView>

@@ -17,10 +17,7 @@ export default function ProfileScreen() {
       >
         <ProfileLicense />
 
-        <ProfileInventory />
 
-        {/* Divider / Spacer */}
-        <View style={styles.divider} />
 
         <ProfileSettings />
       </ScrollView>

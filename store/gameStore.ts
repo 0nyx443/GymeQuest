@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import { supabase } from '@/utils/supabase';
 import { Enemy, StatKey, XP_TABLE, MAX_LEVEL } from '@/constants/game';
+import {
+  InventoryRow, CatalogItem, fetchStoreCatalog,
+  fetchInventory, purchaseItem as dbPurchaseItem, consumeItem,
+} from '@/utils/inventory';
 
 export interface PlayerStats {
   strength: number;
@@ -34,11 +38,17 @@ export interface ActiveBattle {
   secondsRemaining: number;
   phase: 'idle' | 'countdown' | 'active' | 'victory' | 'defeat';
   lastRepAt: number | null;
+  // item effects active in this battle
+  effectiveReps: number;        // may be lower than enemy.repsRequired (Elixir)
+  activeEffect: CatalogItem | null;  // for display & XP multiplier
 }
 
 interface GameStore {
   avatar: AvatarState;
   battle: ActiveBattle | null;
+  catalog: CatalogItem[];
+  inventory: InventoryRow[];
+  pendingItemEffect: CatalogItem | null;   // queued before battle starts
   profileNeedsName: boolean;
   showTutorial: boolean;
   isProfileLoaded: boolean;
@@ -48,9 +58,17 @@ interface GameStore {
   boostStats: (boosts: Partial<PlayerStats>) => void;
   recordBattle: (won: boolean, reps: number, enemy: Enemy) => void;
 
+  // Item actions
+  loadInventory: () => Promise<void>;
+  purchaseItem: (item: CatalogItem) => Promise<{ success: boolean; error?: string }>;
+  queueItemEffect: (effect: CatalogItem) => void;
+  clearPendingEffect: () => void;
+  consumeQueuedItem: (itemId: string) => Promise<void>;
+
   // Battle actions
   startBattle: (enemy: Enemy) => void;
-  setBattleActive: () => void; // <--- NEW: Unlocks the game logic!
+  applyItemToCurrentBattle: (effect: CatalogItem) => void;
+  setBattleActive: () => void;
   registerRep: () => void;
   tickTimer: () => void;
   resolveBattle: (outcome: 'victory' | 'defeat') => void;
@@ -93,6 +111,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   showTutorial: false,
   isProfileLoaded: false,
   battle: null,
+  catalog: [],
+  inventory: [],
+  pendingItemEffect: null,
 
   gainXp: (amount) => set((state) => {
     let { xp, level } = state.avatar;
@@ -116,6 +137,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   recordBattle: (won, reps, enemy) => set((state) => {
     let { currentStreak, coins, lastActiveDate } = state.avatar;
+    let newDefeatedEnemies = state.avatar.defeatedEnemies;
     
     // Add coins (base enemy reward + 1 per rep if won, else just partial reps)
     if (won) {
@@ -140,6 +162,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         currentStreak = 1;
       }
       lastActiveDate = todayStr;
+      
+      // Clear defeated enemies for the new day so the Daily Bounty resets
+      newDefeatedEnemies = [];
     }
 
     return {
@@ -151,22 +176,108 @@ export const useGameStore = create<GameStore>((set, get) => ({
         totalReps: state.avatar.totalReps + reps,
         totalBattles: state.avatar.totalBattles + 1,
         victories: state.avatar.victories + (won ? 1 : 0),
-        defeatedEnemies: won && !state.avatar.defeatedEnemies.includes(enemy.id)
-          ? [...state.avatar.defeatedEnemies, enemy.id]
-          : state.avatar.defeatedEnemies,
+        defeatedEnemies: won && !newDefeatedEnemies.includes(enemy.id)
+          ? [...newDefeatedEnemies, enemy.id]
+          : newDefeatedEnemies,
       }
     };
   }),
 
-  startBattle: (enemy) => set({
-    battle: {
-      enemy,
-      repsCompleted: 0,
-      enemyHpRemaining: enemy.hp,
-      secondsRemaining: enemy.timeLimit,
-      phase: 'countdown',
-      lastRepAt: null,
-    },
+  // ── Item actions ─────────────────────────────────────────────────────────
+  loadInventory: async () => {
+    // 1. Load catalog from store_items
+    const catalogData = await fetchStoreCatalog();
+    set({ catalog: catalogData });
+
+    // 2. Load user's actual inventory
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) return;
+    const rows = await fetchInventory(userData.user.id);
+    set({ inventory: rows });
+  },
+
+  purchaseItem: async (item) => {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) return { success: false, error: 'Not logged in' };
+    const currentCoins = get().avatar.coins;
+    const result = await dbPurchaseItem(userData.user.id, item, currentCoins);
+    if (result.success) {
+      // Update local coins immediately so UI reflects without refetch
+      set((state) => ({
+        avatar: { ...state.avatar, coins: result.newCoins },
+        inventory: (() => {
+          const existing = state.inventory.find((r) => r.item_id === item.id);
+          if (existing) {
+            return state.inventory.map((r) =>
+              r.item_id === item.id ? { ...r, quantity: r.quantity + 1 } : r
+            );
+          }
+          return [...state.inventory, { item_id: item.id, quantity: 1 }];
+        })(),
+      }));
+    }
+    return { success: result.success, error: result.error };
+  },
+
+  queueItemEffect: (effect) => set({ pendingItemEffect: effect }),
+  clearPendingEffect: () => set({ pendingItemEffect: null }),
+
+  consumeQueuedItem: async (itemId) => {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) return;
+    await consumeItem(userData.user.id, itemId);
+    set((state) => ({
+      inventory: state.inventory.map((r) =>
+        r.item_id === itemId ? { ...r, quantity: Math.max(0, r.quantity - 1) } : r
+      ).filter((r) => r.quantity > 0),
+    }));
+  },
+
+  // ── startBattle — apply pending item effects ──────────────────────────────
+  startBattle: (enemy) => {
+    const pendingEffect = get().pendingItemEffect;
+    let effectiveReps = enemy.repsRequired;
+    let extraSeconds  = 0;
+
+    if (pendingEffect) {
+      if (pendingEffect.item_type === 'potion') {
+        // Potions reduce required reps by their effect_value
+        effectiveReps = Math.max(1, enemy.repsRequired - pendingEffect.effect_value);
+      }
+      // Note: 'exp_boost' and 'streak_restore' are handled elsewhere.
+    }
+
+    set({
+      battle: {
+        enemy,
+        repsCompleted: 0,
+        enemyHpRemaining: enemy.hp,
+        secondsRemaining: enemy.timeLimit + extraSeconds,
+        phase: 'countdown',
+        lastRepAt: null,
+        effectiveReps,
+        activeEffect: pendingEffect,
+      },
+    });
+  },
+
+  applyItemToCurrentBattle: (effect: CatalogItem) => set((state) => {
+    if (!state.battle) return state;
+    
+    let { effectiveReps, secondsRemaining } = state.battle;
+    if (effect.item_type === 'potion') {
+      // Potions deal direct damage (reduce reps)
+      effectiveReps = Math.max(1, state.battle.enemy.repsRequired - effect.effect_value);
+    }
+    
+    return {
+      battle: {
+        ...state.battle,
+        effectiveReps,
+        secondsRemaining,
+        activeEffect: effect,
+      }
+    };
   }),
 
   // ── NEW: Tells the global store the countdown is over ──
@@ -176,15 +287,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   }),
 
   registerRep: () => set((state) => {
-    // If phase isn't 'active', this block previously rejected your push-ups!
-    if (!state.battle || state.battle.phase !== 'active') return state; 
+    if (!state.battle || state.battle.phase !== 'active') return state;
 
-    const hpPerRep = state.battle.enemy.hp / state.battle.enemy.repsRequired;
+    const repsNeeded = state.battle.effectiveReps;
+    const hpPerRep = state.battle.enemy.hp / repsNeeded;
     const newReps = state.battle.repsCompleted + 1;
     const newHp = Math.max(0, state.battle.enemyHpRemaining - hpPerRep);
     const now = Date.now();
 
-    if (newReps >= state.battle.enemy.repsRequired) {
+    if (newReps >= repsNeeded) {
       return {
         battle: {
           ...state.battle,
@@ -219,7 +330,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { battle, gainXp, boostStats, recordBattle } = get();
     if (!battle) return;
     if (outcome === 'victory') {
-      gainXp(battle.enemy.xpReward);
+      let finalXp = battle.enemy.xpReward;
+      if (battle.activeEffect?.item_type === 'exp_boost') {
+        finalXp *= battle.activeEffect.effect_value;
+      }
+      gainXp(finalXp);
       boostStats(battle.enemy.statBoosts as Partial<PlayerStats>);
     }
     recordBattle(
@@ -278,8 +393,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
         weight_kg: data.weight_kg,
       },
       profileNeedsName: needsName,
-      isProfileLoaded: true,
     }));
+    
+    // Load inventory since the profile is now loaded
+    await get().loadInventory().catch(() => {});
+    
+    // Mark as completely loaded after inventory fetches
+    set({ isProfileLoaded: true });
+    
     return needsName;
   },
 

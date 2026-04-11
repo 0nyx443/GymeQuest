@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Platform, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import DashboardScreen from '@/screens/DashboardScreen';
+import BattleHubScreen from '@/screens/BattleHubScreen';
+import StoreScreen from '@/screens/StoreScreen';
+import InventoryScreen from '@/screens/InventoryScreen';
 import QuestScreen from '@/screens/QuestScreen';
 import GuildScreen from '@/screens/GuildScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
@@ -13,40 +15,40 @@ import { AuthColors } from '@/constants/theme';
 import { supabase } from '@/utils/supabase';
 import { Session } from '@supabase/supabase-js';
 import { useGameStore } from '@/store/gameStore';
-import { ENEMIES } from '@/constants/game';
 
-import { BottomNav } from '@/components/hub/BottomNav';
-
-type Tab = 'home' | 'quests' | 'guild' | 'profile';
+import { BottomNav, Tab } from '@/components/hub/BottomNav';
 
 export default function HomeRoute() {
   const router = useRouter();
-  const [session, setSession] = useState<Session | null>(null);
-  const [isSessionLoading, setIsSessionLoading] = useState(true); // <-- NEW: Added to prevent the flicker
-  const [activeTab, setActiveTab] = useState<Tab>('home');
-  const loadProfile = useGameStore((state) => state.loadProfile);
+  const [session, setSession]               = useState<Session | null>(null);
+  const [isSessionLoading, setIsSessionLoading] = useState(true);
+  const [activeTab, setActiveTab]           = useState<Tab>('battle');
+  // When the Battle Hub's "Quests" button is pressed, switch to the quests sub-view
+  const [showQuestsInHub, setShowQuestsInHub] = useState(false);
+
+  const loadProfile      = useGameStore((state) => state.loadProfile);
   const profileNeedsName = useGameStore((state) => state.profileNeedsName);
-  const showTutorial = useGameStore((state) => state.showTutorial);
-  const isProfileLoaded = useGameStore((state) => state.isProfileLoaded);
-  const startBattle = useGameStore((s) => s.startBattle);
+  const showTutorial     = useGameStore((state) => state.showTutorial);
+  const isProfileLoaded  = useGameStore((state) => state.isProfileLoaded);
 
   useEffect(() => {
-    // 1. Initial Session Check
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setIsSessionLoading(false); // We now know the true session state
-    });
-
-    // 2. Auth State Listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
       setIsSessionLoading(false);
-
       if (session) {
-        setActiveTab('home'); // always start on Dashboard after login
         useGameStore.setState({ isProfileLoaded: false });
         loadProfile();
-      } else {
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+      setIsSessionLoading(false);
+      if (session && event === 'SIGNED_IN') {
+        setActiveTab('battle');
+        useGameStore.setState({ isProfileLoaded: false });
+        loadProfile();
+      } else if (!session) {
         useGameStore.setState({ isProfileLoaded: false, profileNeedsName: false, showTutorial: false });
         useGameStore.getState().resetAvatar();
       }
@@ -55,14 +57,12 @@ export default function HomeRoute() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleBattlePress = () => {
-    if (ENEMIES.length > 0) {
-      startBattle(ENEMIES[0]);
-      router.push('/combat');
-    }
+  const handleTabPress = (tab: Tab) => {
+    setActiveTab(tab);
+    setShowQuestsInHub(false); // reset quest sub-view when switching tabs
   };
 
-  // ── PREVENT FLICKER: Wait for Supabase to confirm session status ──
+  // Loading / auth / onboarding guards
   if (isSessionLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -70,36 +70,34 @@ export default function HomeRoute() {
       </View>
     );
   }
-
-  if (!session) {
-    return <AuthScreen />;
-  }
-
-  if (!isProfileLoaded) {
-    return <View style={{ flex: 1, backgroundColor: AuthColors.bg }} />;
-  }
-
-  if (profileNeedsName) {
-    return <RegisterScreen onBack={() => { supabase.auth.signOut(); }} />;
-  }
-
-  if (showTutorial) {
-    return <TutorialScreen />;
-  }
+  if (!session)          return <AuthScreen />;
+  if (!isProfileLoaded)  return <View style={{ flex: 1, backgroundColor: AuthColors.bg }} />;
+  if (profileNeedsName)  return <RegisterScreen onBack={() => { supabase.auth.signOut(); }} />;
+  if (showTutorial)      return <TutorialScreen />;
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'top']}>
       <View style={styles.content}>
-        {activeTab === 'home' && <DashboardScreen />}
-        {activeTab === 'quests' && <QuestScreen />}
-        {activeTab === 'guild' && <GuildScreen />}
-        {activeTab === 'profile' && <ProfileScreen />}
+        {/* ── Battle Hub (centre tab) ── */}
+        {activeTab === 'battle' && !showQuestsInHub && (
+          <BattleHubScreen
+            onQuestsPress={() => setShowQuestsInHub(true)}
+          />
+        )}
+        {/* Quest list — triggered from BattleHub's "QUESTS" button */}
+        {activeTab === 'battle' && showQuestsInHub && (
+          <QuestScreen onBack={() => setShowQuestsInHub(false)} />
+        )}
+
+        {activeTab === 'store'     && <StoreScreen />}
+        {activeTab === 'inventory' && <InventoryScreen />}
+        {activeTab === 'guild'     && <GuildScreen />}
+        {activeTab === 'profile'   && <ProfileScreen />}
       </View>
 
       <BottomNav
         activeTab={activeTab}
-        onTabPress={setActiveTab}
-        onBattlePress={handleBattlePress}
+        onTabPress={handleTabPress}
       />
     </SafeAreaView>
   );
@@ -112,12 +110,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingBottom: 64, // Leave space so content isn't under the BottomNav
+    paddingBottom: 64,
   },
   loadingContainer: {
     flex: 1,
     backgroundColor: AuthColors.bg,
     justifyContent: 'center',
     alignItems: 'center',
-  }
+  },
 });

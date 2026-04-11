@@ -21,6 +21,7 @@ export interface PoseEngineOutput {
   repCount: number;
   isBodyVisible: boolean;
   isPositionReady: boolean;  // full-body check for pre-battle positioning
+  formFeedback: string | null;
   debugMsg: string;
   processPoseData: (jsonString: string) => void;
 }
@@ -31,6 +32,7 @@ export function usePoseEngine(exercise: ExerciseType, active: boolean): PoseEngi
   const [primaryAngle, setPrimaryAngle] = useState(180);
   // Start as false — the WebView must confirm body is visible, not the default
   const [isBodyVisible, setIsBodyVisible] = useState(false);
+  const [formFeedback, setFormFeedback] = useState<string | null>(null);
   // Full-body check for positioning phase (requires shoulders + hips + knees)
   const [isPositionReady, setIsPositionReady] = useState(false);
   const [debugMsg, setDebugMsg]         = useState('Booting AI Engine...');
@@ -83,13 +85,14 @@ export function usePoseEngine(exercise: ExerciseType, active: boolean): PoseEngi
         setPrimaryAngle(parsed.angle);
         setRepState(parsed.state);
         setRepCount(parsed.reps);
+        setFormFeedback(parsed.cue || null);
       }
     } catch {
       // ignore frame errors
     }
   }, [active, handleSpeakRequest, handleVibrateRequest]);
 
-  return { primaryAngle, repState, repCount, isBodyVisible, isPositionReady, processPoseData, debugMsg };
+  return { primaryAngle, repState, repCount, isBodyVisible, isPositionReady, formFeedback, processPoseData, debugMsg };
 }
 
 // ─── MediaPipe WebView HTML ───────────────────────────────────────────────────
@@ -299,7 +302,8 @@ function initPose() {
       }
 
       if (!visible) {
-        sendUpdate({type:'POSE_UPDATE',angle:180,state:currentState,reps:localRepCount,visible:false,fullBody:isFullBodyReady()});
+        var invisibleCue = 'Adjust camera to show your whole body';
+        sendUpdate({type:'POSE_UPDATE',angle:180,state:currentState,reps:localRepCount,visible:false,fullBody:isFullBodyReady(),cue:invisibleCue});
         return;
       }
 
@@ -324,7 +328,7 @@ function initPose() {
         if (badFormFrames > 0) badFormFrames--;
       }
 
-      sendUpdate({type:'POSE_UPDATE',angle:Math.round(angle),state:currentState,reps:localRepCount,visible:visible,fullBody:isFullBodyReady()});
+      sendUpdate({type:'POSE_UPDATE',angle:Math.round(angle),state:currentState,reps:localRepCount,visible:visible,fullBody:isFullBodyReady(),cue:cue});
     });
 
     pose.initialize().then(function() {

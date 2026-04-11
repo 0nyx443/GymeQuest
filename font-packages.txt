@@ -1,6 +1,0 @@
-# Font packages to install alongside main dependencies
-# These are Expo Google Fonts packages used in _layout.tsx
-
-@expo-google-fonts/cinzel
-@expo-google-fonts/rajdhani
-@expo-google-fonts/share-tech-mono

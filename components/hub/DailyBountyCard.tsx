@@ -6,10 +6,11 @@ import { Enemy, EXERCISES } from '@/constants/game';
 
 interface DailyBountyCardProps {
     enemy: Enemy;
+    isCompleted?: boolean;
     onPress: () => void;
 }
 
-export function DailyBountyCard({ enemy, onPress }: DailyBountyCardProps) {
+export function DailyBountyCard({ enemy, isCompleted, onPress }: DailyBountyCardProps) {
     const [timeLeft, setTimeLeft] = useState<string>('Loading...');
 
     // ── Midnight Countdown Timer Logic ──
@@ -80,13 +81,19 @@ export function DailyBountyCard({ enemy, onPress }: DailyBountyCardProps) {
                 </View>
             </View>
 
-            <TouchableOpacity
-                style={styles.button}
-                activeOpacity={0.8}
-                onPress={onPress}
-            >
-                <Text style={styles.buttonText}>START QUEST</Text>
-            </TouchableOpacity>
+            {isCompleted ? (
+                <View style={[styles.button, styles.buttonCompleted]}>
+                    <Text style={styles.buttonCompletedText}>COMPLETED</Text>
+                </View>
+            ) : (
+                <TouchableOpacity
+                    style={styles.button}
+                    activeOpacity={0.8}
+                    onPress={onPress}
+                >
+                    <Text style={styles.buttonText}>START QUEST</Text>
+                </TouchableOpacity>
+            )}
         </View>
     );
 }
@@ -145,6 +152,8 @@ const styles = StyleSheet.create({
         borderColor: AuthColors.navy,
         justifyContent: 'center',
         alignItems: 'center',
+        overflow: 'hidden',
+        position: 'relative',
     },
     image: {
         width: '100%',
@@ -190,9 +199,19 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         alignItems: 'center',
     },
+    buttonCompleted: {
+        backgroundColor: '#CBD5E1',
+        borderColor: '#94A3B8',
+        borderBottomWidth: 3,
+    },
     buttonText: {
         fontFamily: Fonts.pixel,
         fontSize: 12,
         color: '#FFFFFF',
+    },
+    buttonCompletedText: {
+        fontFamily: Fonts.pixel,
+        fontSize: 12,
+        color: '#64748b',
     },
 });

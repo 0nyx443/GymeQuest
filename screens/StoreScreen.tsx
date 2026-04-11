@@ -1,66 +1,33 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Alert } from 'react-native';
 import { AuthColors, Fonts } from '@/constants/theme';
-import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/utils/supabase';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useGameStore } from '@/store/gameStore';
+import { CatalogItem } from '@/utils/inventory';
 
-interface StoreItem {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  item_type: string;
-  icon_name: string;
-}
+export default function StoreScreen() {
+  const coins = useGameStore((s) => s.avatar?.coins ?? 0);
+  const catalog = useGameStore((s) => s.catalog);
+  const purchaseItem = useGameStore((s) => s.purchaseItem);
+  const [purchasingId, setPurchasingId] = useState<string | null>(null);
 
-export default function StoreScreen({ onBack }: { onBack: () => void }) {
-  const [items, setItems] = useState<StoreItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [coins, setCoins] = useState(0);
-
-  useEffect(() => {
-    fetchStoreData();
-  }, []);
-
-  const fetchStoreData = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const [storeRes, profileRes] = await Promise.all([
-        supabase.from('store_items').select('*'),
-        supabase.from('profiles').select('coins').eq('id', session.user.id).single()
-      ]);
-
-      if (storeRes.error) {
-        console.error('Store items error:', storeRes.error);
-        alert(`Error loading store items: ${storeRes.error.message}`);
-      }
-      
-      if (profileRes.error) {
-        console.error('Profile coins error:', profileRes.error);
-        // Do not alert for coins, it might fail if coins is not set up
-      }
-
-      if (storeRes.data) setItems(storeRes.data);
-      if (profileRes.data) setCoins(profileRes.data.coins || 0);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePurchase = async (item: StoreItem) => {
+  const handlePurchase = useCallback(async (item: CatalogItem) => {
     if (coins < item.price) {
       alert("Not enough coins!");
       return;
     }
-    // Simulate purchase for now since it's just the UI step requested
-    alert(`Purchased ${item.name}!`);
-  };
+    setPurchasingId(item.id);
+    const result = await purchaseItem(item);
+    setPurchasingId(null);
+    
+    if (result.success) {
+      alert(`Purchased ${item.name}!`);
+    } else {
+      alert(`Purchase failed: ${result.error}`);
+    }
+  }, [coins, purchaseItem]);
 
-  const renderItem = ({ item }: { item: StoreItem }) => (
+  const renderItem = useCallback(({ item }: { item: CatalogItem }) => (
     <View style={styles.itemCard}>
       <View style={styles.itemHeader}>
         <Ionicons name={item.icon_name as any || "cube"} size={32} color={AuthColors.navy} />
@@ -71,37 +38,39 @@ export default function StoreScreen({ onBack }: { onBack: () => void }) {
       </View>
       <Text style={styles.itemDesc}>{item.description}</Text>
       <TouchableOpacity 
-        style={[styles.buyButton, coins < item.price && styles.buyButtonDisabled]} 
+        style={[
+          styles.buyButton, 
+          (coins < item.price || purchasingId === item.id) && styles.buyButtonDisabled
+        ]} 
         onPress={() => handlePurchase(item)}
+        disabled={coins < item.price || purchasingId === item.id}
       >
-        <Text style={styles.buyText}>BUY</Text>
+        {purchasingId === item.id ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <Text style={styles.buyText}>BUY</Text>
+        )}
       </TouchableOpacity>
     </View>
-  );
+  ), [coins, purchasingId, handlePurchase]);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <Ionicons name="arrow-back" size={24} color={AuthColors.navy} />
-        </TouchableOpacity>
-        <Text style={styles.title}>SHOP</Text>
-        <View style={styles.coinContainer}>
-          <Ionicons name="logo-bitcoin" size={20} color="#DAB65E" />
-          <Text style={styles.coinText}>{coins}</Text>
+        <Text style={styles.title}>🛒 SHOP</Text>
+        <View style={styles.coinBadge}>
+          <MaterialCommunityIcons name="star-four-points" size={12} color="#FDE047" />
+          <Text style={styles.coinBadgeNum}>{coins}</Text>
+          <Text style={styles.coinBadgeLbl}>COINS</Text>
         </View>
       </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color={AuthColors.navy} style={{ marginTop: 50 }} />
-      ) : (
-        <FlatList
-          data={items}
-          renderItem={renderItem}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.list}
-        />
-      )}
+      <FlatList
+        data={catalog}
+        renderItem={renderItem}
+        keyExtractor={item => item.id}
+        contentContainerStyle={styles.list}
+      />
     </View>
   );
 }
@@ -112,17 +81,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    padding: 20,
     paddingTop: 50,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 3,
+    borderBottomWidth: 4,
     borderBottomColor: AuthColors.navy,
   },
-  backButton: { padding: 8 },
-  title: { fontFamily: Fonts.pixel, fontSize: 24, color: AuthColors.navy },
-  coinContainer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  coinText: { fontFamily: Fonts.vt323, fontSize: 20, color: AuthColors.navy, fontWeight: 'bold' },
+  title: {
+    fontFamily: Fonts.pixel,
+    fontSize: 20,
+    color: AuthColors.navy,
+    letterSpacing: 2,
+    marginTop: 4,
+  },
+  coinBadge: {
+    backgroundColor: '#1E293B',
+    borderWidth: 2,
+    borderColor: '#EAB308',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    shadowColor: '#EAB308',
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 0.5,
+    shadowRadius: 0,
+  },
+  coinBadgeNum: {
+    fontFamily: Fonts.pixel,
+    fontSize: 14,
+    color: '#FEF08A',
+    marginTop: 3,
+  },
+  coinBadgeLbl: {
+    fontFamily: Fonts.vt323,
+    fontSize: 13,
+    color: '#FDE047',
+    letterSpacing: 1,
+    marginTop: 2,
+  },
   list: { padding: 16, gap: 16 },
   itemCard: {
     backgroundColor: '#FFFFFF',

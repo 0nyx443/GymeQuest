@@ -24,11 +24,20 @@ export default function CombatScreen() {
   const registerRep   = useGameStore((s) => s.registerRep);
   const resolveBattle = useGameStore((s) => s.resolveBattle);
   const setBattleActive = useGameStore((s) => s.setBattleActive);
+  const resetBattle   = useGameStore((s) => s.resetBattle);
+  
+  // Inventory actions
+  const inventory = useGameStore((s) => s.inventory);
+  const consumeQueuedItem = useGameStore((s) => s.consumeQueuedItem);
+  const applyItemToCurrentBattle = useGameStore((s) => s.applyItemToCurrentBattle);
+  const catalog = useGameStore((s) => s.catalog);
+  const avatar  = useGameStore((s) => s.avatar);
 
   const [countdown, setCountdown]         = useState(3);
   const [isActive, setIsActive]           = useState(false);
   const [localSeconds, setLocalSeconds]   = useState(battle?.enemy.timeLimit || 60);
   const [webViewReady, setWebViewReady]   = useState(false);
+  const [showItemModal, setShowItemModal] = useState(!battle?.enemy.isEndurance && inventory.length > 0);
 
   // ── Positioning phase state ────────────────────────────────────────────────
   // 'waiting'  = overlay shown, waiting for user to get into position
@@ -48,13 +57,20 @@ export default function CombatScreen() {
   const attackFlashAnim  = useRef(new Animated.Value(0)).current;
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevRepsRef      = useRef(0);
+  const lastRepTimeRef   = useRef(Date.now()); // For endurance inactivity tracking
   const webViewRef       = useRef<WebView>(null);
 
-  const exercise    = battle?.enemy.exercise ?? 'push_up';
+  const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0);
+  const phaseList = battle?.enemy.phases;
+  const hasPhases = battle?.enemy.isEndurance && phaseList && phaseList.length > 0;
+  const currentPhase = hasPhases ? phaseList[currentPhaseIndex % phaseList.length] : null;
+
+  const exercise    = currentPhase ? currentPhase.exercise : (battle?.enemy.exercise ?? 'push_up');
+  const phaseGoal   = currentPhase ? currentPhase.reps : (battle?.effectiveReps ?? battle?.enemy.repsRequired ?? 10);
   const exerciseDef = EXERCISES[exercise];
 
   const {
-    repState, repCount, isBodyVisible, isPositionReady, processPoseData,
+    repState, repCount, isBodyVisible, isPositionReady, formFeedback, processPoseData,
   } = usePoseEngine(exercise, isActive);
 
   // 2. ADDED AUDIO PREFS INITIALIZATION
@@ -62,7 +78,7 @@ export default function CombatScreen() {
 
   // ── Inject exercise type & speak "get in position" when WebView is ready ──
   useEffect(() => {
-    if (!webViewReady || !webViewRef.current) return;
+    if (!webViewReady || !webViewRef.current || showItemModal) return;
     const exerciseName = exercise.replace('_', ' ');
     // setExerciseType configures the rep logic
     // speakGetInPosition tells the user to prepare their stance
@@ -85,7 +101,7 @@ export default function CombatScreen() {
         Animated.timing(positionPulseAnim, { toValue: 1.0,  duration: 700, useNativeDriver: true }),
       ])
     ).start();
-  }, [webViewReady, exercise]);
+  }, [webViewReady, exercise, showItemModal]);
 
   // ── Keep isBodyVisibleRef in sync so the interval can read it ─────────────
   // Uses isPositionReady (shoulders+hips+knees) not just isBodyVisible (shoulders only),
@@ -98,7 +114,7 @@ export default function CombatScreen() {
   // useEffect(isBodyVisible) only fires on value CHANGES, not per frame.
   // A setInterval guarantees steady ticking regardless of React re-renders.
   useEffect(() => {
-    if (!webViewReady) return;
+    if (!webViewReady || showItemModal) return;
     if (positionReadyRef.current) return; // already confirmed
 
     positionIntervalRef.current = setInterval(() => {
@@ -156,16 +172,46 @@ export default function CombatScreen() {
     return () => {
       if (positionIntervalRef.current) clearInterval(positionIntervalRef.current);
     };
-  }, [webViewReady]);
+  }, [webViewReady, showItemModal]);
+
+  const handleUseItem = async (itemId: string) => {
+    const catalogItem = catalog.find(c => c.id === itemId);
+    if (!catalogItem) return;
+    
+    // consume the item via Supabase RPC (decrements by 1)
+    await consumeQueuedItem(itemId);
+    
+    // apply effect instantly to the active battle
+    applyItemToCurrentBattle(catalogItem);
+    
+    alert(`Consumed ${catalogItem.name}!`);
+    setShowItemModal(false);
+  };
 
 
   // ── Guaranteed local timer ─────────────────────────────────────────────────
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive || !battle) return;
+
+    // Reset inactivity timer when starting
+    lastRepTimeRef.current = Date.now();
+
     timerIntervalRef.current = setInterval(() => {
+      // Inactivity Check for Endurance
+      if (battle.enemy.isEndurance && Date.now() - lastRepTimeRef.current > 7000) {
+        // 7 seconds without a rep -> DEFEAT
+        resolveBattle('defeat');
+        router.replace('/post-battle');
+        return;
+      }
+
       setLocalSeconds((prev) => {
         if (prev <= 1) {
-          resolveBattle('defeat');
+          if (battle.enemy.isEndurance) {
+            resolveBattle('victory');
+          } else {
+            resolveBattle('defeat');
+          }
           router.replace('/post-battle');
           return 0;
         }
@@ -173,14 +219,19 @@ export default function CombatScreen() {
       });
     }, 1000);
     return () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); };
-  }, [isActive, resolveBattle, router]);
+  }, [isActive, resolveBattle, router, battle]);
 
   // ── Rep detection & flash ──────────────────────────────────────────────────
   useEffect(() => {
     if (!isActive || !battle) return;
-    if (repCount > prevRepsRef.current) {
+
+    if (repCount < prevRepsRef.current) {
+      prevRepsRef.current = repCount;
+      lastRepTimeRef.current = Date.now();
+    } else if (repCount > prevRepsRef.current) {
       const scored = repCount - prevRepsRef.current;
       prevRepsRef.current = repCount;
+      lastRepTimeRef.current = Date.now();
       for (let i = 0; i < scored; i++) registerRep();
 
       damageAnim.setValue(0);
@@ -198,7 +249,9 @@ export default function CombatScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle[style]).catch(() => {});
       }
 
-      if (repCount >= battle.enemy.repsRequired) {
+      if (hasPhases && repCount >= phaseGoal) {
+        setCurrentPhaseIndex(i => i + 1);
+      } else if (!battle.enemy.isEndurance && repCount >= (battle.effectiveReps ?? battle.enemy.repsRequired)) {
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         setIsActive(false);
         // Fire victory speech
@@ -218,7 +271,9 @@ export default function CombatScreen() {
     resolveBattle, 
     router, 
     audioPrefs.repVibrationEnabled, 
-    audioPrefs.repVibrationIntensity
+    audioPrefs.repVibrationIntensity,
+    hasPhases,
+    phaseGoal
   ]); // Added audio prefs to dependency array
 
   if (!permission?.granted) {
@@ -302,66 +357,42 @@ export default function CombatScreen() {
                 <View style={styles.enemyAvatarInner} />
               )}
             </View>
-
             <View>
               <Text style={styles.enemyName}>{battle.enemy.name.toUpperCase().replace(' ','_')}</Text>
-              
-              {/* ── DYNAMIC HEART RENDER ── */}
               <View style={styles.heartsRow}>
                 {[...Array(totalHearts)].map((_, i) => (
-                  <MaterialIcons 
-                    key={i} 
-                    name="favorite" 
-                    size={12} 
-                    color={i < activeHearts ? AuthColors.crimson : "#CBD5E1"} 
-                  />
+                  <MaterialIcons key={i} name="favorite" size={12} color={i < activeHearts ? AuthColors.crimson : "#CBD5E1"} />
                 ))}
               </View>
-
               <View style={styles.hpBg}>
                 <View style={[styles.hpFill, { width: `${hpPercent}%` as any }]} />
               </View>
             </View>
           </View>
-          <TouchableOpacity
-            style={styles.fleeBtn}
-            onPress={() => { resolveBattle('defeat'); router.replace('/post-battle'); }}
-          >
+          <TouchableOpacity style={styles.fleeBtn} onPress={() => { resetBattle(); router.replace('/'); }}>
             <Text style={styles.fleeBtnText}>FLEE</Text>
           </TouchableOpacity>
         </View>
-
-        <View style={styles.timerCard}>
-          <Text style={styles.timerLabel}>TIMER</Text>
-          <Text style={styles.timerValue}>{fmtTime(localSeconds)}</Text>
+        <View style={styles.rightHud}>
+          <View style={styles.streakBadge}>
+            <MaterialIcons name="local-fire-department" size={14} color={AuthColors.gold} />
+            <Text style={styles.streakText}>{avatar.currentStreak}</Text>
+          </View>
+          <View style={styles.timerCard}>
+            <Text style={styles.timerLabel}>TIMER</Text>
+            <Text style={styles.timerValue}>{fmtTime(localSeconds)}</Text>
+          </View>
         </View>
       </View>
 
-      {/* ── EXERCISE + TTS BADGE ── */}
-      <View style={styles.badgeContainer} pointerEvents="none">
-        <View style={[styles.exerciseBadge, { backgroundColor: badgeColor }]}>
-          <Text style={styles.exerciseEmoji}>{exerciseDef?.emoji ?? '💪'}</Text>
-          <Text style={styles.exerciseLabel}>{exerciseDef?.label?.toUpperCase() ?? exercise.toUpperCase()}</Text>
-        </View>
-        <View style={styles.ttsTag}>
-          <Text style={styles.ttsText}>🔊 COACHING ON</Text>
-        </View>
-      </View>
-
-      {/* ── FLOATING DAMAGE ── */}
-      <Animated.View
-        style={[styles.dmgContainer, { opacity: damageOpacity, transform: [{ translateY: damageTransY }] }]}
-        pointerEvents="none"
-      >
-        <Text style={styles.dmgText}>-10</Text>
-      </Animated.View>
-
-      {/* ── BOTTOM HUD ── */}
-      <View style={styles.repRow} pointerEvents="box-none">
+      {/* ── ALERTS / REPS HUD ── */}
+      <View style={styles.repRow} pointerEvents="none">
         <View style={styles.repsLeftCard}>
-          <Text style={styles.repsLeftVal}>{Math.max(0, battle.enemy.repsRequired - repCount)}</Text>
+          <Text style={styles.repsLeftVal}>
+            {battle.enemy.isEndurance ? '∞' : (battle.effectiveReps ?? battle.enemy.repsRequired)}
+          </Text>
           <View style={styles.divThin} />
-          <Text style={styles.repsLeftLbl}>LEFT</Text>
+          <Text style={styles.repsLeftLbl}>GOAL</Text>
         </View>
         <View style={styles.mainRepCard}>
           <Text style={styles.mainRepVal}>{repCount}</Text>
@@ -370,68 +401,77 @@ export default function CombatScreen() {
         </View>
       </View>
 
-      {/* COMBO */}
-      {repState === 'down' && (
-        <View style={styles.comboWrap} pointerEvents="none">
-          <View style={[styles.comboCard, { backgroundColor: badgeColor }]}>
-            <Text style={styles.comboText}>PERFECT!</Text>
+      {formFeedback && isActive && (
+        <View style={styles.formFeedbackBadge}>
+          <MaterialIcons name="error-outline" size={14} color={AuthColors.white} />
+          <Text style={styles.formFeedbackText}>{formFeedback}</Text>
+        </View>
+      )}
+
+      {battle?.activeEffect && (
+        <View style={styles.activeEffectBadge}>
+          <MaterialIcons name="auto-awesome" size={14} color={AuthColors.gold} />
+          <Text style={styles.activeEffectText}>
+            {(() => {
+              const eff = battle.activeEffect;
+              if (!eff) return '';
+              if (eff.item_type === 'potion') return `REPS -${eff.effect_value}`;
+              if (eff.item_type === 'exp_boost') return `XP x${eff.effect_value}`;
+              if (eff.item_type === 'streak_restore') return `STREAK SHIELD`;
+              return '';
+            })()}
+          </Text>
+        </View>
+      )}
+
+      {showItemModal && (
+        <View style={styles.itemModalOverlay}>
+          <View style={styles.itemModalContent}>
+            <Text style={styles.itemModalTitle}>PREPARE FOR BATTLE</Text>
+            <Text style={styles.itemModalSub}>Use an item before fighting?</Text>
+            <View style={{ maxHeight: 250, width: '100%', marginBottom: 16 }}>
+              {inventory.map((inv) => {
+                const item = catalog.find(c => c.id === inv.item_id);
+                if (!item) return null;
+                return (
+                  <TouchableOpacity key={inv.item_id} style={styles.itemModalRow} onPress={() => handleUseItem(item.id)}>
+                    <View style={styles.itemModalRowLeft}>
+                      <Text style={styles.itemModalName}>{item.name}</Text>
+                      <Text style={styles.itemModalDesc}>{item.description}</Text>
+                    </View>
+                    <View style={styles.itemModalRowRight}>
+                      <Text style={styles.itemModalQty}>x{inv.quantity}</Text>
+                      <View style={styles.itemModalUseBtn}><Text style={styles.itemModalUseTxt}>USE</Text></View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <TouchableOpacity style={styles.itemModalSkipBtn} onPress={() => setShowItemModal(false)}>
+              <Text style={styles.itemModalSkipTxt}>SKIP & FIGHT</Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}
 
-      {/* ── POSITIONING OVERLAY ── Shown until user is in position ── */}
-      {positionPhase !== 'ready' && !isActive && (
+      {!isActive && !showItemModal && positionPhase !== 'ready' && (
         <Animated.View style={[styles.positioningOverlay, { opacity: positionFadeAnim }]} pointerEvents="none">
-          {/* Pulsing icon */}
-          <Animated.Text style={[styles.positioningIcon, { transform: [{ scale: positionPulseAnim }] }]}>
-            {exerciseDef?.emoji ?? '💪'}
-          </Animated.Text>
-
+          <Animated.Text style={[styles.positioningIcon, { transform: [{ scale: positionPulseAnim }] }]}>{exerciseDef?.emoji ?? '💪'}</Animated.Text>
           <Text style={styles.positioningTitle}>GET IN POSITION</Text>
-          <Text style={styles.positioningExercise}>
-            {exerciseDef?.label?.toUpperCase() ?? exercise.toUpperCase()}
-          </Text>
-          <Text style={styles.positioningHint}>
-            {positionPhase === 'waiting'
-              ? 'Step back so your full body is visible'
-              : '✓ Body detected — hold your position!'}
-          </Text>
-
-          {/* Progress bar */}
+          <Text style={styles.positioningExercise}>{exerciseDef?.label?.toUpperCase() ?? exercise.toUpperCase()}</Text>
+          <Text style={styles.positioningHint}>{positionPhase === 'waiting' ? 'Step back so your full body is visible' : '✓ Body detected — hold your position!'}</Text>
           <View style={styles.detectBarBg}>
-            <Animated.View
-              style={[
-                styles.detectBarFill,
-                {
-                  width: `${detectProgress}%` as any,
-                  backgroundColor: positionPhase === 'detected' ? '#00C9A7' : '#E63946',
-                },
-              ]}
-            />
+            <Animated.View style={[styles.detectBarFill, { width: `${detectProgress}%` as any, backgroundColor: positionPhase === 'detected' ? '#00C9A7' : '#E63946' }]} />
           </View>
-          <Text style={styles.detectBarLabel}>
-            {positionPhase === 'detected' ? `${detectProgress}% — almost there…` : 'Waiting for body detection'}
-          </Text>
+          <Text style={styles.detectBarLabel}>{positionPhase === 'detected' ? `${detectProgress}% — almost there…` : 'Waiting for body detection'}</Text>
         </Animated.View>
       )}
 
-      {/* ── COUNTDOWN OVERLAY ── */}
       {positionPhase === 'ready' && !isActive && countdown > 0 && (
         <View style={styles.countdownOverlay} pointerEvents="none">
           <Text style={styles.countdownNum}>{countdown}</Text>
           <Text style={styles.countdownSub}>GET READY</Text>
-          <View style={[styles.exercisePill, { backgroundColor: badgeColor }]}>
-            <Text style={styles.exercisePillText}>
-              {exerciseDef?.emoji} {exerciseDef?.label?.toUpperCase()}
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* VISIBILITY WARNING */}
-      {isActive && !isBodyVisible && (
-        <View style={styles.visWarn} pointerEvents="none">
-          <Text style={styles.visWarnText}>⚠ Body not detected — step back</Text>
+          <View style={[styles.exercisePill, { backgroundColor: badgeColor }]}><Text style={styles.exercisePillText}>{exerciseDef?.emoji} {exerciseDef?.label?.toUpperCase()}</Text></View>
         </View>
       )}
     </View>
@@ -442,19 +482,10 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#000' },
   scanlines: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(18,52,65,0.2)' },
   attackFlash: { backgroundColor: AuthColors.white, zIndex: 10 },
-
-  topHud: {
-    position: 'absolute', top: 64, left: '50%',
-    transform: [{ translateX: -190 }], width: 380,
-    flexDirection: 'row', alignItems: 'flex-start', gap: 8, zIndex: 40,
-  },
-  enemyCard: {
-    flex: 1, backgroundColor: AuthColors.white, borderWidth: 3, borderColor: '#123441',
-    shadowColor: '#123441', shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0,
-    padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-  },
+  topHud: { position: 'absolute', top: 64, left: '50%', transform: [{ translateX: -190 }], width: 380, flexDirection: 'row', alignItems: 'flex-start', gap: 8, zIndex: 40 },
+  enemyCard: { flex: 1, backgroundColor: AuthColors.white, borderWidth: 3, borderColor: '#123441', padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   enemyInner: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  enemyAvatar: { width: 48, height: 48, borderWidth: 3, borderColor: '#123441', backgroundColor: '#c6e8f8', padding: 4 },
+  enemyAvatar: { width: 48, height: 48, borderWidth: 3, borderColor: '#123441', backgroundColor: '#c6e8f8', padding: 4, overflow: 'hidden', position: 'relative' },
   enemyAvatarInner: { flex: 1, backgroundColor: '#6fd8c8' },
   enemyName: { fontFamily: Fonts.pixel, fontSize: 10, color: '#123441', marginBottom: 4 },
   heartsRow: { flexDirection: 'row', gap: 2 },
@@ -462,11 +493,10 @@ const styles = StyleSheet.create({
   hpFill: { height: '100%', backgroundColor: AuthColors.crimson },
   fleeBtn: { backgroundColor: '#E2E8F0', borderWidth: 3, borderColor: '#123441', paddingHorizontal: 16, paddingVertical: 4 },
   fleeBtnText: { fontFamily: Fonts.pixel, fontSize: 10, color: '#123441' },
-  timerCard: {
-    backgroundColor: AuthColors.white, borderWidth: 3, borderColor: '#123441',
-    shadowColor: '#123441', shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0,
-    padding: 8, minWidth: 70, alignItems: 'center', justifyContent: 'center',
-  },
+  rightHud: { gap: 8 },
+  streakBadge: { backgroundColor: AuthColors.navy, borderWidth: 3, borderColor: AuthColors.gold, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 4, gap: 4 },
+  streakText: { fontFamily: Fonts.pixel, fontSize: 10, color: AuthColors.gold, paddingTop: 2 },
+  timerCard: { backgroundColor: AuthColors.white, borderWidth: 3, borderColor: '#123441', padding: 8, minWidth: 70, alignItems: 'center', justifyContent: 'center' },
   timerLabel: { fontFamily: Fonts.vt323, fontSize: 12, color: '#123441', marginBottom: 2 },
   timerValue: { fontFamily: Fonts.pixel, fontSize: 10, color: AuthColors.crimson },
 
@@ -498,72 +528,22 @@ const styles = StyleSheet.create({
   comboCard: { borderWidth: 3, borderColor: '#123441', shadowColor: '#123441', shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0, padding: 8, transform: [{ rotate: '12deg' }] },
   comboText: { fontFamily: Fonts.pixel, fontSize: 10, color: AuthColors.white },
 
-  // ── Positioning overlay ──────────────────────────────────────────────────
-  positioningOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,10,20,0.88)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 100,
-    paddingHorizontal: 32,
-  },
+  activeEffectBadge: { position: 'absolute', top: 140, left: '50%', transform: [{ translateX: -70 }], flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 4, borderWidth: 1, borderColor: AuthColors.gold, zIndex: 50 },
+  activeEffectText: { fontFamily: Fonts.pixel, fontSize: 9, color: AuthColors.gold, marginLeft: 6, letterSpacing: 1 },
+  positioningOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,10,20,0.88)', justifyContent: 'center', alignItems: 'center', zIndex: 100, paddingHorizontal: 32 },
   positioningIcon: { fontSize: 72, marginBottom: 16 },
-  positioningTitle: {
-    fontFamily: Fonts.pixel,
-    fontSize: 18,
-    color: '#FFFFFF',
-    letterSpacing: 4,
-    textAlign: 'center',
-    marginBottom: 6,
-    textShadowColor: '#00C9A7',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 8,
-  },
-  positioningExercise: {
-    fontFamily: Fonts.vt323,
-    fontSize: 20,
-    color: '#00C9A7',
-    letterSpacing: 6,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  positioningHint: {
-    fontFamily: Fonts.vt323,
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.75)',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  detectBarBg: {
-    width: '85%',
-    height: 14,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 7,
-    overflow: 'hidden',
-    marginBottom: 10,
-  },
-  detectBarFill: {
-    height: '100%',
-    borderRadius: 7,
-  },
-  detectBarLabel: {
-    fontFamily: Fonts.vt323,
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.55)',
-    letterSpacing: 1,
-    textAlign: 'center',
-  },
-
-  // ── Countdown ────────────────────────────────────────────────────────────
+  positioningTitle: { fontFamily: Fonts.pixel, fontSize: 18, color: '#FFFFFF', letterSpacing: 4, textAlign: 'center', marginBottom: 6 },
+  positioningExercise: { fontFamily: Fonts.vt323, fontSize: 20, color: '#00C9A7', letterSpacing: 6, textAlign: 'center', marginBottom: 20 },
+  positioningHint: { fontFamily: Fonts.vt323, fontSize: 16, color: 'rgba(255,255,255,0.75)', textAlign: 'center', marginBottom: 24 },
+  detectBarBg: { width: '85%', height: 14, backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)', borderRadius: 7, overflow: 'hidden', marginBottom: 10 },
+  detectBarFill: { height: '100%', borderRadius: 7 },
+  detectBarLabel: { fontFamily: Fonts.vt323, fontSize: 13, color: 'rgba(255,255,255,0.55)', textAlign: 'center' },
   countdownOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(18,52,65,0.85)', justifyContent: 'center', alignItems: 'center', zIndex: 100 },
   countdownNum: { fontFamily: Fonts.pixel, fontSize: 100, color: AuthColors.bg, textShadowColor: AuthColors.navy, textShadowOffset: { width: 8, height: 8 }, textShadowRadius: 0 },
   countdownSub: { fontFamily: Fonts.vt323, fontSize: 24, letterSpacing: 8, color: AuthColors.crimson, marginTop: 16 },
   exercisePill: { marginTop: 24, paddingHorizontal: 20, paddingVertical: 10, borderWidth: 3, borderColor: '#FFFFFF' },
   exercisePillText: { fontFamily: Fonts.pixel, fontSize: 12, color: '#FFFFFF', letterSpacing: 2 },
-
+  
   visWarn: { position: 'absolute', top: 130, alignSelf: 'center', backgroundColor: AuthColors.crimson, borderWidth: 2, borderColor: AuthColors.navy, paddingHorizontal: 16, paddingVertical: 8, zIndex: 80 },
   visWarnText: { fontFamily: Fonts.vt323, fontSize: 16, color: AuthColors.white, letterSpacing: 1 },
 
@@ -572,4 +552,121 @@ const styles = StyleSheet.create({
   permBody: { fontFamily: Fonts.vt323, fontSize: 18, color: '#3D494C', textAlign: 'center', marginBottom: 32 },
   permBtn: { backgroundColor: AuthColors.crimson, paddingHorizontal: 32, paddingVertical: 14, borderWidth: 3, borderColor: AuthColors.navy, shadowColor: AuthColors.navy, shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0 },
   permBtnText: { fontFamily: Fonts.pixel, fontSize: 12, color: AuthColors.white },
+
+  itemModalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,10,20,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 150,
+    paddingHorizontal: 20,
+  },
+  itemModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 4,
+    borderColor: AuthColors.navy,
+    width: '100%',
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: AuthColors.crimson,
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+  },
+  itemModalTitle: {
+    fontFamily: Fonts.pixel,
+    fontSize: 16,
+    color: AuthColors.navy,
+    letterSpacing: 2,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  itemModalSub: {
+    fontFamily: Fonts.vt323,
+    fontSize: 16,
+    color: '#8D99AE',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  itemModalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    marginBottom: 8,
+    width: '100%',
+  },
+  itemModalRowLeft: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  itemModalName: {
+    fontFamily: Fonts.pixel,
+    fontSize: 12,
+    color: AuthColors.navy,
+    marginBottom: 4,
+  },
+  itemModalDesc: {
+    fontFamily: Fonts.vt323,
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 14,
+  },
+  itemModalRowRight: {
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    minHeight: 40,
+  },
+  itemModalQty: {
+    fontFamily: Fonts.pixel,
+    fontSize: 10,
+    color: AuthColors.navy,
+    marginBottom: 8,
+  },
+  itemModalUseBtn: {
+    backgroundColor: AuthColors.crimson,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 2,
+    borderColor: AuthColors.navy,
+  },
+  itemModalUseTxt: {
+    fontFamily: Fonts.pixel,
+    fontSize: 9,
+    color: '#FFFFFF',
+  },
+  itemModalSkipBtn: {
+    borderBottomWidth: 2,
+    borderColor: AuthColors.navy,
+    marginTop: 12,
+  },
+  itemModalSkipTxt: {
+    fontFamily: Fonts.pixel,
+    fontSize: 12,
+    color: AuthColors.navy,
+    letterSpacing: 2,
+  },
+  formFeedbackBadge: {
+    position: 'absolute',
+    bottom: 220,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(230, 57, 70, 0.9)',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+    zIndex: 50,
+  },
+  formFeedbackText: {
+    fontFamily: Fonts.pixel,
+    fontSize: 10,
+    color: '#FFFFFF',
+    top: 1, // baseline tweak
+  },
 });

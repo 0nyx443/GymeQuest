@@ -542,16 +542,6 @@ export default function GuildScreen() {
             </View>
           ) : null}
 
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => {
-              void onRefresh();
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.secondaryButtonText}>REFRESH</Text>
-          </TouchableOpacity>
-
           <Text style={styles.helpText}>You can join a friend's guild by entering their exact guild name above.</Text>
         </ScrollView>
       </View>

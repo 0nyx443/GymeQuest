@@ -75,26 +75,26 @@ export function ProfileLicense() {
                     <MaterialCommunityIcons name="human" size={20} color={AuthColors.crimson} />
                     <Text style={styles.sectionTitle}>PHYSICAL TRAITS</Text>
                 </View>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginTop: 8 }}>
-                    <View style={{ width: "48%", marginBottom: 12 }}>
-                        <Text style={styles.infoLabel}>BIRTHDAY (AGE)</Text>
-                        <Text style={styles.infoName}>
+                <View style={styles.traitsGrid}>
+                    <View style={styles.traitCard}>
+                        <Text style={styles.traitLabel}>BIRTHDAY</Text>
+                        <Text style={styles.traitValue}>
                             {avatar.birthday 
-                                ? `${avatar.birthday} (${getAge(avatar.birthday) ?? '?'} YRS)` 
+                                ? `${avatar.birthday}\n(${getAge(avatar.birthday) ?? '?'} YRS)` 
                                 : "?"}
                         </Text>
                     </View>
-                    <View style={{ width: "48%", marginBottom: 12 }}>
-                        <Text style={styles.infoLabel}>SEX</Text>
-                        <Text style={styles.infoName}>{avatar.sex ? (avatar.sex as string).toUpperCase() : "?"}</Text>
+                    <View style={styles.traitCard}>
+                        <Text style={styles.traitLabel}>SEX</Text>
+                        <Text style={styles.traitValue}>{avatar.sex ? (avatar.sex as string).toUpperCase() : "?"}</Text>
                     </View>
-                    <View style={{ width: "48%", marginBottom: 12 }}>
-                        <Text style={styles.infoLabel}>HEIGHT</Text>
-                        <Text style={styles.infoName}>{avatar.height_cm ? `${avatar.height_cm} CM` : "?"}</Text>
+                    <View style={styles.traitCard}>
+                        <Text style={styles.traitLabel}>HEIGHT</Text>
+                        <Text style={styles.traitValue}>{avatar.height_cm ? `${avatar.height_cm} CM` : "?"}</Text>
                     </View>
-                    <View style={{ width: "48%", marginBottom: 12 }}>
-                        <Text style={styles.infoLabel}>WEIGHT</Text>
-                        <Text style={styles.infoName}>{avatar.weight_kg ? `${avatar.weight_kg} KG` : "?"}</Text>
+                    <View style={styles.traitCard}>
+                        <Text style={styles.traitLabel}>WEIGHT</Text>
+                        <Text style={styles.traitValue}>{avatar.weight_kg ? `${avatar.weight_kg} KG` : "?"}</Text>
                     </View>
                 </View>
             </View>
@@ -158,6 +158,11 @@ export function ProfileLicense() {
                         <Text style={styles.recordLabel}>TOTAL REPS</Text>
                         <Text style={styles.recordVal}>{avatar.totalReps.toLocaleString()}</Text>
                     </View>
+                    <View style={styles.recordCard}>
+                        <MaterialCommunityIcons name="fire" size={20} color={AuthColors.crimson} />
+                        <Text style={styles.recordLabel}>CURRENT STREAK</Text>
+                        <Text style={styles.recordVal}>{avatar.currentStreak} DAYS</Text>
+                    </View>
                 </View>
             </View>
         </View>
@@ -183,6 +188,10 @@ const styles = StyleSheet.create({
   section: { marginBottom: 32 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
   sectionTitle: { fontFamily: Fonts.pixel, fontSize: 12, color: AuthColors.navy },
+  traitsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 },
+  traitCard: { width: '48%', backgroundColor: '#F8FAFC', borderWidth: 2, borderColor: '#CBD5E1', padding: 12, borderRadius: 4 },
+  traitLabel: { fontFamily: Fonts.pixel, fontSize: 8, color: '#64748B', marginBottom: 6, lineHeight: 12 },
+  traitValue: { fontFamily: Fonts.vt323, fontSize: 20, color: AuthColors.navy, lineHeight: 20 },
   statBlock: { marginBottom: 20 },
   statLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   statName: { fontFamily: Fonts.vt323, fontSize: 16, color: '#3D494C' },

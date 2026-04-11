@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal,
-  TextInput, ScrollView, Alert, Switch
+  TextInput, ScrollView, Alert, Switch, Platform,
 } from 'react-native';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
@@ -28,11 +28,11 @@ import * as Haptics from 'expo-haptics';
 // By using this dummy object, we prevent the "Missing ExpoPushTokenManager" crash
 // while keeping all your UI state logic perfectly intact!
 const Notifications = {
-  setNotificationHandler: () => {},
-  cancelAllScheduledNotificationsAsync: async () => {},
+  setNotificationHandler: () => { },
+  cancelAllScheduledNotificationsAsync: async () => { },
   requestPermissionsAsync: async () => {
     Alert.alert(
-      'Dev Build Required', 
+      'Dev Build Required',
       'Actual push notifications require a custom Development Build in Expo SDK 52+. This switch is currently in Simulation Mode so you can safely test the UI!'
     );
     return { status: 'granted' };
@@ -270,17 +270,25 @@ export function ProfileSettings() {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert('Save & Quit', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: () => supabase.auth.signOut() },
-    ]);
+  const handleLogout = async () => {
+    const title = 'Quit';
+    const message = 'Are you sure you want to sign out?';
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`${title}: ${message}`)) {
+        await supabase.auth.signOut();
+      }
+    } else {
+      Alert.alert(title, message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign Out', style: 'destructive', onPress: () => supabase.auth.signOut() },
+      ]);
+    }
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerLabel}>[ PAUSE MENU ]</Text>
         <Text style={styles.headerTitle}>SETTINGS</Text>
       </View>
 
@@ -309,7 +317,7 @@ export function ProfileSettings() {
 
       <TouchableOpacity style={styles.logoutButton} activeOpacity={0.8} onPress={handleLogout}>
         <MaterialCommunityIcons name="logout" size={20} color={AuthColors.crimson} />
-        <Text style={styles.logoutText}>SAVE & QUIT</Text>
+        <Text style={styles.logoutText}>QUIT</Text>
       </TouchableOpacity>
 
       {/* ════════════════════════════════════════════════

@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import { View, StyleSheet, ScrollView, StatusBar } from 'react-native';
 import { useGameStore, selectXpProgress } from '@/store/gameStore';
 import { useRouter } from 'expo-router';
 // ADDED MAX_LEVEL here so your XP isn't capped at 10
-import { XP_TABLE, ENEMIES, MAX_LEVEL } from '@/constants/game'; 
+import { XP_TABLE, ENEMIES, MAX_LEVEL } from '@/constants/game';
 import { AuthColors } from '@/constants/theme';
 import { supabase } from '@/utils/supabase';
 
@@ -20,12 +20,6 @@ export default function DashboardScreen() {
   const resetBattle = useGameStore((s) => s.resetBattle);
   const xpProgress = useGameStore(selectXpProgress);
   const startBattle = useGameStore((s) => s.startBattle);
-  const loadProfile = useGameStore((s) => s.loadProfile);
-
-  // Added this so your profile loads properly when the screen mounts
-  useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
 
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut();
@@ -35,7 +29,7 @@ export default function DashboardScreen() {
 
   const handleQuestPress = useCallback(() => {
     // Make sure we have enemies before trying to battle
-    if (ENEMIES && ENEMIES.length > 1) { 
+    if (ENEMIES && ENEMIES.length > 1) {
       startBattle(ENEMIES[1]); // Iron Sentinel
       router.push('/combat');
     }
@@ -60,22 +54,23 @@ export default function DashboardScreen() {
           playerName={avatar.name}
           playerLevel={avatar.level}
           playerClass={avatar.class || 'ADVENTURER'}
+          onStorePress={() => router.push('/store')}
         />
-        
+
         <AvatarStage />
-        
+
         <ExpBar
           currentXp={avatar.xp}
           nextLevelXp={nextLevelXp}
           progress={xpProgress}
         />
-        
+
         <StatGrid
           strength={avatar.stats.strength}
           agility={avatar.stats.agility}
           stamina={avatar.stats.stamina}
         />
-        
+
         {/* Updated to pass the full Enemy object so the Timer card works */}
         <DailyBountyCard
           enemy={ENEMIES && ENEMIES.length > 1 ? ENEMIES[1] : null}

@@ -8,9 +8,10 @@ interface GreetingHeaderProps {
     playerLevel: number;
     playerClass: string;
     onNotificationsPress?: () => void;
+    onStorePress?: () => void;
 }
 
-export function GreetingHeader({ playerName, playerLevel, playerClass, onNotificationsPress }: GreetingHeaderProps) {
+export function GreetingHeader({ playerName, playerLevel, playerClass, onNotificationsPress, onStorePress }: GreetingHeaderProps) {
     return (
         <View style={styles.container}>
             <View>
@@ -18,13 +19,22 @@ export function GreetingHeader({ playerName, playerLevel, playerClass, onNotific
                 <Text style={styles.nameText}>{playerName}</Text>
                 <Text style={styles.levelText}>LVL {playerLevel} {playerClass}</Text>
             </View>
-            <TouchableOpacity
-                style={styles.bellButton}
-                activeOpacity={0.8}
-                onPress={onNotificationsPress}
-            >
-                <Ionicons name="notifications" size={24} color={AuthColors.navy} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity
+                    style={styles.bellButton}
+                    activeOpacity={0.8}
+                    onPress={onStorePress}
+                >
+                    <Ionicons name="cart" size={24} color={AuthColors.navy} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={styles.bellButton}
+                    activeOpacity={0.8}
+                    onPress={onNotificationsPress}
+                >
+                    <Ionicons name="notifications" size={24} color={AuthColors.navy} />
+                </TouchableOpacity>
+            </View>
         </View>
     );
 }

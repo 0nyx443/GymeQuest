@@ -12,6 +12,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import RegisterScreen from './RegisterScreen';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { supabase } from '@/utils/supabase';
@@ -280,14 +281,20 @@ const fieldStyles = StyleSheet.create({
 });
 
 // ─── Pixel Input ──────────────────────────────────────────────────────────────
-function PixelInput(props: React.ComponentProps<typeof TextInput> & { value: string; onChangeText: (t: string) => void }) {
+function PixelInput(props: React.ComponentProps<typeof TextInput> & { value: string; onChangeText: (t: string) => void; rightElement?: React.ReactNode }) {
+  const { rightElement, ...rest } = props;
   return (
     <View style={inputStyles.wrap}>
       <TextInput
         style={inputStyles.input}
         placeholderTextColor="rgba(188,201,204,0.5)"
-        {...props}
+        {...rest}
       />
+      {rightElement && (
+        <View style={{ position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center' }}>
+          {rightElement}
+        </View>
+      )}
     </View>
   );
 }
@@ -318,6 +325,7 @@ const inputStyles = StyleSheet.create({
 export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [loading, setLoading] = useState(false);
 
@@ -428,7 +436,16 @@ export default function AuthScreen() {
               placeholder="••••••••"
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
+              secureTextEntry={!showPassword}
+              rightElement={
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                  <Ionicons
+                    name={showPassword ? 'eye-off' : 'eye'}
+                    size={24}
+                    color={AC.navy}
+                  />
+                </TouchableOpacity>
+              }
             />
 
             {loading ? (

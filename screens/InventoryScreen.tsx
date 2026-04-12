@@ -1,13 +1,18 @@
 /**
  * InventoryScreen.tsx — player's item inventory and skill equipment.
  */
-import React, { useCallback, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, StatusBar, FlatList, TouchableOpacity, Alert, ActivityIndicator, Modal, ScrollView, Image } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, StatusBar, SectionList, TouchableOpacity, Alert, ActivityIndicator, Modal, ScrollView, Image } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { useGameStore } from '@/store/gameStore';
 import { PASSIVE_SKILLS } from '@/utils/skills';
 import { InventoryRow, CatalogItem, getItemImage } from '@/utils/inventory';
+import { getSkinPreviewImages } from '@/utils/skins';
+
+type SectionRowData =
+  | { kind: 'item'; item: InventoryRow }
+  | { kind: 'skill'; skillId: string };
 
 export default function InventoryScreen() {
   const inventory = useGameStore((s) => s.inventory);
@@ -58,13 +63,27 @@ export default function InventoryScreen() {
     }
   };
 
-  // Combine consumable inventory with purchased skins for display
-  const combinedList = [
+  // Combine consumable inventory with purchased skins
+  const combinedList: InventoryRow[] = [
     ...inventory.filter(r => r.quantity > 0),
     ...catalog
         .filter(c => c.item_type === 'skin' && c.skin_id && purchasedSkins.includes(c.skin_id))
-        .map(c => ({ item_id: c.id, quantity: 1 }))
+        .map(c => ({ item_id: c.id, quantity: 1 })),
   ];
+
+  const sections: { title: string; data: SectionRowData[] }[] = [];
+  if (combinedList.length > 0) {
+    sections.push({
+      title: 'ITEMS',
+      data: combinedList.map(item => ({ kind: 'item' as const, item })),
+    });
+  }
+  if (purchasedSkills.length > 0) {
+    sections.push({
+      title: 'PASSIVE SKILLS',
+      data: purchasedSkills.map(skillId => ({ kind: 'skill' as const, skillId: skillId as string })),
+    });
+  }
 
   const renderItemCard = useCallback(({ item }: { item: InventoryRow }) => {
     const catalogItem = catalog.find((c) => c.id === item.item_id);
@@ -77,7 +96,9 @@ export default function InventoryScreen() {
       <View style={styles.itemCard}>
         <View style={styles.itemHeader}>
           <View style={styles.iconBox}>
-            {getItemImage(catalogItem.name) ? (
+            {isSkin ? (
+              <Image source={getSkinPreviewImages(catalogItem.skin_id || '').profile} style={{ width: 44, height: 44 }} resizeMode="contain" />
+            ) : getItemImage(catalogItem.name) ? (
               <Image source={getItemImage(catalogItem.name)} style={{ width: 36, height: 36 }} resizeMode="contain" />
             ) : (
               <Ionicons name={catalogItem.icon_name as any || "cube"} size={36} color={AuthColors.navy} />
@@ -90,9 +111,9 @@ export default function InventoryScreen() {
         <Text style={styles.itemDesc}>{catalogItem.description}</Text>
         <View style={styles.rightActionBox}>
           {!isSkin && (
-              <View style={styles.qtyBadge}>
-                <Text style={styles.qtyText}>x{item.quantity}</Text>
-              </View>
+            <View style={styles.qtyBadge}>
+              <Text style={styles.qtyText}>x{item.quantity}</Text>
+            </View>
           )}
           {isSkin && (
             <View style={styles.skinActionBox}>
@@ -128,7 +149,7 @@ export default function InventoryScreen() {
         </View>
       </View>
     );
-  }, [catalog, equippedSkin, handleUseItem, usingId]);
+  }, [catalog, equippedSkin, usingId]);
 
   const renderSkillCard = useCallback(({ item }: { item: string }) => {
     const skill = PASSIVE_SKILLS[item as any];
@@ -158,37 +179,12 @@ export default function InventoryScreen() {
         </View>
       </View>
     );
-  }, [equippedSkills, handleToggleSkill]);
+  }, [equippedSkills]);
 
   const renderPreviewModal = () => {
     if (!previewItem) return null;
+    const pImages = getSkinPreviewImages(previewItem.skin_id || '');
 
-    const getPreviewImages = (skinId: string) => {
-      if (skinId === 'omni_man') {
-          return {
-              profile: require('@/assets/images/Omni-Man_profile.png'),
-              idle: require('@/assets/images/Omni-Man_combat_idle.png'),
-              victory: require('@/assets/images/Omni-Man_victory.png'),
-              defeat: require('@/assets/images/Omni-Man_defeated.png')
-          };
-      }
-      if (skinId === 'atom_eve') {
-          return {
-              profile: require('@/assets/images/Atom-Eve_profile.png'),
-              idle: require('@/assets/images/Atom-Eve_combat_idle.png'),
-              victory: require('@/assets/images/Atom-Eve_victory.png'),
-              defeat: require('@/assets/images/Atom-Eve_defeated.png')
-          };
-      }
-      return {
-          profile: require('@/assets/images/m_avatar.png'),
-          idle: require('@/assets/images/m_battle.png'),
-          victory: require('@/assets/images/m_victory.png'),
-          defeat: require('@/assets/images/m_defeated.png')
-      };
-    };
-    const pImages = getPreviewImages(previewItem.skin_id || '');
-    
     return (
       <Modal visible={true} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -239,48 +235,44 @@ export default function InventoryScreen() {
 
       {previewItem && renderPreviewModal()}
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-        {/* ITEMS SECTION */}
-        {combinedList.length > 0 && (
-          <View>
+      {sections.length === 0 ? (
+        <View style={styles.emptyWrap}>
+          <MaterialCommunityIcons name="bag-personal-outline" size={64} color="#CBD5E1" />
+          <Text style={styles.emptyTitle}>INVENTORY EMPTY</Text>
+          <Text style={styles.emptyBody}>
+            Items, potions, and equipment{'\n'}you collect will appear here.
+          </Text>
+        </View>
+      ) : (
+        <SectionList
+          sections={sections}
+          keyExtractor={(item, index) =>
+            item.kind === 'item'
+              ? `item_${item.item.item_id}_${index}`
+              : `skill_${item.skillId}`
+          }
+          contentContainerStyle={styles.listContent}
+          stickySectionHeadersEnabled={false}
+          renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>🎒 ITEMS</Text>
+              {section.title === 'PASSIVE SKILLS' ? (
+                <View style={styles.sectionTitleRow}>
+                  <Text style={styles.sectionTitle}>⚡ {section.title}</Text>
+                  <Text style={styles.equippedCount}>{equippedSkills.length}/3 Equipped</Text>
+                </View>
+              ) : (
+                <Text style={styles.sectionTitle}>🎒 {section.title}</Text>
+              )}
             </View>
-            {combinedList.map((item, index) => (
-              <View key={item.item_id + index}>
-                {renderItemCard({ item })}
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* SKILLS SECTION */}
-        {purchasedSkills.length > 0 && (
-          <View>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionTitleRow}>
-                <Text style={styles.sectionTitle}>⚡ PASSIVE SKILLS</Text>
-                <Text style={styles.equippedCount}>{equippedSkills.length}/3 Equipped</Text>
-              </View>
-            </View>
-            {purchasedSkills.map(skillId => (
-              <View key={skillId}>
-                {renderSkillCard({ item: skillId })}
-              </View>
-            ))}
-          </View>
-        )}
-
-        {combinedList.length === 0 && purchasedSkills.length === 0 && (
-          <View style={styles.emptyWrap}>
-            <MaterialCommunityIcons name="bag-personal-outline" size={64} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>INVENTORY EMPTY</Text>
-            <Text style={styles.emptyBody}>
-              Items, potions, and equipment{'\n'}you collect will appear here.
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+          )}
+          renderItem={({ item }) => {
+            if (item.kind === 'item') {
+              return renderItemCard({ item: item.item });
+            }
+            return renderSkillCard({ item: item.skillId });
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -372,8 +364,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   listContent: {
-    padding: 16,
-    gap: 12,
+    paddingBottom: 24,
   },
   itemCard: {
     backgroundColor: '#FFFFFF',

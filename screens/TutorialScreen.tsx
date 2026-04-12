@@ -32,9 +32,6 @@ export default function TutorialScreen() {
           <View style={ts.appBarIcon} />
           <Text style={ts.appBarTitle}>GYME Quest</Text>
         </View>
-        <TouchableOpacity style={ts.skipBtn} onPress={handleDismiss}>
-          <Text style={ts.skipText}>SKIP</Text>
-        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -129,10 +126,10 @@ const ts = StyleSheet.create({
     opacity: 0.05,
     ...(Platform.OS === 'web'
       ? {
-          backgroundImage: 'radial-gradient(70.71% 70.71% at 50% 50%, #123441 3.54%, transparent 3.54%)',
-          backgroundSize: '16px 16px',
-          backgroundPosition: '0 0, 8px 8px',
-        }
+        backgroundImage: 'radial-gradient(70.71% 70.71% at 50% 50%, #123441 3.54%, transparent 3.54%)',
+        backgroundSize: '16px 16px',
+        backgroundPosition: '0 0, 8px 8px',
+      }
       : {}),
   },
 

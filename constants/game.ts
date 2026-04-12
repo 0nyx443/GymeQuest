@@ -69,7 +69,8 @@ export interface Enemy {
   id: string;
   name: string;
   title: string;
-  hp: number;
+  hp: number;               // Legacy field, kept for reference
+  health: number;           // NEW: Actual health in damage units
   exercise: ExerciseType;
   repsRequired: number;
   timeLimit: number;        // seconds
@@ -85,12 +86,19 @@ export interface Enemy {
   phases?: { exercise: ExerciseType; reps: number }[]; // Ordered sequence of exercises for boss fights
 }
 
+// Health calculation formula: base health scales with difficulty
+function calculateHealth(difficulty: Difficulty): number {
+  const baseHealth = 150; // Base HP for difficulty 1
+  return Math.round(baseHealth * Math.pow(difficulty, 1.5));
+}
+
 export const ENEMIES: Enemy[] = [
   {
     id: 'goblin_scout',
     name: 'Goblin Scout',
     title: 'Forest Ambusher',
     hp: 100,
+    health: 130,
     exercise: 'push_up',
     repsRequired: 5,
     timeLimit: 60,
@@ -108,6 +116,7 @@ export const ENEMIES: Enemy[] = [
     name: 'Iron Sentinel',
     title: 'Gate Warden',
     hp: 250,
+    health: 390,
     exercise: 'squat',
     repsRequired: 15,
     timeLimit: 90,
@@ -125,6 +134,7 @@ export const ENEMIES: Enemy[] = [
     name: 'Shadow Monk',
     title: 'Void Disciple',
     hp: 400,
+    health: 650,
     exercise: 'sit_up',
     repsRequired: 20,
     timeLimit: 120,
@@ -142,6 +152,7 @@ export const ENEMIES: Enemy[] = [
     name: 'Dragon Wyrmling',
     title: 'Sky Sovereign',
     hp: 600,
+    health: 910,
     exercise: 'pull_up',
     repsRequired: 5,
     timeLimit: 120,
@@ -159,6 +170,7 @@ export const ENEMIES: Enemy[] = [
     name: 'Ancient Colossus',
     title: 'World Ender',
     hp: 1000,
+    health: 1170,
     exercise: 'push_up',
     repsRequired: 30,
     timeLimit: 150,
@@ -180,6 +192,7 @@ export const BOSSES: Enemy[] = [
     name: 'Goblin Swarm',
     title: '30 Second Challenge',
     hp: 9999,
+    health: 50000,
     exercise: 'squat',
     repsRequired: 9999,
     timeLimit: 30, // 30 seconds
@@ -191,45 +204,47 @@ export const BOSSES: Enemy[] = [
     lore: 'An endless swarm of minor goblins. Survive for 30 seconds.',
     color: '#3A5A40',
     isEndurance: true,
-      image: require('@/assets/images/goblin_scout.png'),
-    },
-    {
-      id: 'endurance_orc_vanguard',
-      name: 'Orc Vanguard',
-      title: '1 Minute Gauntlet',
-      hp: 9999,
-      exercise: 'squat',
-      repsRequired: 9999,
-      timeLimit: 60, // 60 seconds
-      xpReward: 0,
-      coinReward: 0,
-      statBoosts: { strength: 5, stamina: 5 },
-      difficulty: 3,
-      unlockLevel: 1,
-      lore: 'A heavily armored line of Orc warriors. Hold out for 1 minute.',
-      color: '#8B4513',
-      isEndurance: true,
-      image: require('@/assets/images/iron_sentinel.png'),
-    },
-    {
-      id: 'endurance_titan_overlord',
-      name: 'Titan Overlord',
-      title: '2 Minute Trial',
-      hp: 9999,
-      exercise: 'squat', // Fallback, uses phases mostly
-      repsRequired: 9999, // limitless
-      timeLimit: 120, // 2 minutes timer
-      xpReward: 0,
-      coinReward: 0,
-      statBoosts: { strength: 10, stamina: 10 },
-      difficulty: 5,
-      unlockLevel: 1,
-      lore: 'The legendary Titan. Stand your ground for 2 agonizing minutes.',
-      color: '#2D1B4E',
-      isEndurance: true,
-      image: require('@/assets/images/ancient_colossus.png'),
-    },
-  ];
+    image: require('@/assets/images/goblin_scout.png'),
+  },
+  {
+    id: 'endurance_orc_vanguard',
+    name: 'Orc Vanguard',
+    title: '1 Minute Gauntlet',
+    hp: 9999,
+    health: 100000,
+    exercise: 'squat',
+    repsRequired: 9999,
+    timeLimit: 60, // 60 seconds
+    xpReward: 0,
+    coinReward: 0,
+    statBoosts: { strength: 5, stamina: 5 },
+    difficulty: 3,
+    unlockLevel: 1,
+    lore: 'A heavily armored line of Orc warriors. Hold out for 1 minute.',
+    color: '#8B4513',
+    isEndurance: true,
+    image: require('@/assets/images/iron_sentinel.png'),
+  },
+  {
+    id: 'endurance_titan_overlord',
+    name: 'Titan Overlord',
+    title: '2 Minute Trial',
+    hp: 9999,
+    health: 200000,
+    exercise: 'squat', // Fallback, uses phases mostly
+    repsRequired: 9999, // limitless
+    timeLimit: 120, // 2 minutes timer
+    xpReward: 0,
+    coinReward: 0,
+    statBoosts: { strength: 10, stamina: 10 },
+    difficulty: 5,
+    unlockLevel: 1,
+    lore: 'The legendary Titan. Stand your ground for 2 agonizing minutes.',
+    color: '#2D1B4E',
+    isEndurance: true,
+    image: require('@/assets/images/ancient_colossus.png'),
+  },
+];
 
 // ── NEW: Level Cap increased from 10 to 50 ──
 export const MAX_LEVEL = 50;

@@ -1,12 +1,12 @@
 /**
- * InventoryScreen.tsx — placeholder for player's item inventory.
+ * InventoryScreen.tsx — player's item inventory and skill equipment.
  */
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, StatusBar, FlatList, TouchableOpacity, Alert, ActivityIndicator, Modal, ScrollView, Image } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { useGameStore } from '@/store/gameStore';
-
+import { PASSIVE_SKILLS } from '@/utils/skills';
 import { InventoryRow, CatalogItem, getItemImage } from '@/utils/inventory';
 
 export default function InventoryScreen() {
@@ -14,9 +14,13 @@ export default function InventoryScreen() {
   const catalog = useGameStore((s) => s.catalog);
   const useItemFromInventory = useGameStore((s) => s.useItemFromInventory);
   
-  const purchasedSkins = useGameStore((s) => s.avatar.purchasedSkins);
+  const purchasedSkins = useGameStore((s) => s.avatar.purchasedSkins) || [];
   const equippedSkin = useGameStore((s) => s.avatar.equippedSkin);
   const equipSkin = useGameStore((s) => s.equipSkin);
+
+  const purchasedSkills = useGameStore((s) => s.avatar.purchasedSkills) || [];
+  const equippedSkills = useGameStore((s) => s.avatar.equippedSkills) || [];
+  const toggleSkillEquip = useGameStore((s) => s.toggleSkillEquip);
 
   const [usingId, setUsingId] = useState<string | null>(null);
   const [previewItem, setPreviewItem] = useState<CatalogItem | null>(null);
@@ -41,6 +45,19 @@ export default function InventoryScreen() {
     }
   };
 
+  const handleToggleSkill = (skillId: string) => {
+    const isEquipped = equippedSkills.includes(skillId as any);
+    if (isEquipped) {
+      toggleSkillEquip(skillId as any);
+    } else {
+      if (equippedSkills.length >= 3) {
+        Alert.alert("Max Skills Equipped", "You can only equip 3 skills at a time.");
+        return;
+      }
+      toggleSkillEquip(skillId as any);
+    }
+  };
+
   // Combine consumable inventory with purchased skins for display
   const combinedList = [
     ...inventory.filter(r => r.quantity > 0),
@@ -49,12 +66,11 @@ export default function InventoryScreen() {
         .map(c => ({ item_id: c.id, quantity: 1 }))
   ];
 
-  const renderItem = useCallback(({ item }: { item: InventoryRow }) => {
+  const renderItemCard = useCallback(({ item }: { item: InventoryRow }) => {
     const catalogItem = catalog.find((c) => c.id === item.item_id);
     if (!catalogItem) return null;
 
     const isSkin = catalogItem.item_type === 'skin';
-    // Show "USE" button mainly for items like streak savers
     const canUseFromInventory = catalogItem.item_type === 'streak_restore';
 
     return (
@@ -114,6 +130,104 @@ export default function InventoryScreen() {
     );
   }, [catalog, equippedSkin, handleUseItem, usingId]);
 
+  const renderSkillCard = useCallback(({ item }: { item: string }) => {
+    const skill = PASSIVE_SKILLS[item as any];
+    const isEquipped = equippedSkills.includes(item as any);
+
+    return (
+      <View style={styles.itemCard}>
+        <View style={styles.itemHeader}>
+          <View style={styles.iconBox}>
+            <Text style={{ fontSize: 32 }}>{skill.icon}</Text>
+          </View>
+          <View style={styles.itemInfo}>
+            <Text style={styles.itemName}>{skill.name}</Text>
+            <Text style={styles.skillLevel}>Level {skill.unlockLevel}</Text>
+          </View>
+        </View>
+        <Text style={styles.itemDesc}>{skill.description}</Text>
+        <View style={styles.rightActionBox}>
+          <TouchableOpacity 
+            style={[styles.useBtn, isEquipped && styles.equipBtnActive]}
+            onPress={() => handleToggleSkill(item)}
+          >
+            <Text style={styles.useBtnText}>
+              {isEquipped ? 'UNEQUIP' : 'EQUIP'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }, [equippedSkills, handleToggleSkill]);
+
+  const renderPreviewModal = () => {
+    if (!previewItem) return null;
+
+    const getPreviewImages = (skinId: string) => {
+      if (skinId === 'omni_man') {
+          return {
+              profile: require('@/assets/images/Omni-Man_profile.png'),
+              idle: require('@/assets/images/Omni-Man_combat_idle.png'),
+              victory: require('@/assets/images/Omni-Man_victory.png'),
+              defeat: require('@/assets/images/Omni-Man_defeated.png')
+          };
+      }
+      if (skinId === 'atom_eve') {
+          return {
+              profile: require('@/assets/images/Atom-Eve_profile.png'),
+              idle: require('@/assets/images/Atom-Eve_combat_idle.png'),
+              victory: require('@/assets/images/Atom-Eve_victory.png'),
+              defeat: require('@/assets/images/Atom-Eve_defeated.png')
+          };
+      }
+      return {
+          profile: require('@/assets/images/m_avatar.png'),
+          idle: require('@/assets/images/m_battle.png'),
+          victory: require('@/assets/images/m_victory.png'),
+          defeat: require('@/assets/images/m_defeated.png')
+      };
+    };
+    const pImages = getPreviewImages(previewItem.skin_id || '');
+    
+    return (
+      <Modal visible={true} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{previewItem.name}</Text>
+              <TouchableOpacity onPress={() => setPreviewItem(null)}>
+                <Ionicons name="close-circle" size={32} color={AuthColors.navy} />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView contentContainerStyle={styles.previewScroll}>
+              <View style={styles.previewRow}>
+                <View style={styles.previewBox}>
+                  <Text style={styles.previewLabel}>Profile / Avatar</Text>
+                  <Image source={pImages.profile} style={styles.previewImg} resizeMode="contain" />
+                </View>
+                <View style={styles.previewBox}>
+                  <Text style={styles.previewLabel}>Combat Idle</Text>
+                  <Image source={pImages.idle} style={styles.previewImg} resizeMode="contain" />
+                </View>
+              </View>
+              <View style={styles.previewRow}>
+                <View style={styles.previewBox}>
+                  <Text style={styles.previewLabel}>Victory</Text>
+                  <Image source={pImages.victory} style={styles.previewImg} resizeMode="contain" />
+                </View>
+                <View style={styles.previewBox}>
+                  <Text style={styles.previewLabel}>Defeated</Text>
+                  <Image source={pImages.defeat} style={styles.previewImg} resizeMode="contain" />
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor={AuthColors.bg} />
@@ -123,89 +237,50 @@ export default function InventoryScreen() {
         <Text style={styles.headerSub}>YOUR ITEMS & GEAR</Text>
       </View>
 
-{previewItem && (() => {
-          const getPreviewImages = (skinId: string) => {
-            if (skinId === 'omni_man') {
-                return {
-                    profile: require('@/assets/images/Omni-Man_profile.png'),
-                    idle: require('@/assets/images/Omni-Man_combat_idle.png'),
-                    victory: require('@/assets/images/Omni-Man_victory.png'),
-                    defeat: require('@/assets/images/Omni-Man_defeated.png')
-                };
-            }
-            if (skinId === 'atom_eve') {
-                return {
-                    profile: require('@/assets/images/Atom-Eve_profile.png'),
-                    idle: require('@/assets/images/Atom-Eve_combat_idle.png'),
-                    victory: require('@/assets/images/Atom-Eve_victory.png'),
-                    defeat: require('@/assets/images/Atom-Eve_defeated.png')
-                };
-            }
-            // Default m_series
-            return {
-                profile: require('@/assets/images/m_avatar.png'),
-                idle: require('@/assets/images/m_battle.png'),
-                victory: require('@/assets/images/m_victory.png'),
-                defeat: require('@/assets/images/m_defeated.png')
-            };
-          };
-          const pImages = getPreviewImages(previewItem.skin_id || '');
-          
-          return (
-            <Modal visible={true} animationType="slide" transparent>
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>{previewItem.name}</Text>
-                    <TouchableOpacity onPress={() => setPreviewItem(null)}>
-                      <Ionicons name="close-circle" size={32} color={AuthColors.navy} />
-                    </TouchableOpacity>
-                  </View>
-                  
-                  <ScrollView contentContainerStyle={styles.previewScroll}>
-                    <View style={styles.previewRow}>
-                      <View style={styles.previewBox}>
-                        <Text style={styles.previewLabel}>Profile / Avatar</Text>
-                        <Image source={pImages.profile} style={styles.previewImg} resizeMode="contain" />
-                      </View>
-                      <View style={styles.previewBox}>
-                        <Text style={styles.previewLabel}>Combat Idle</Text>
-                        <Image source={pImages.idle} style={styles.previewImg} resizeMode="contain" />
-                      </View>
-                    </View>
-                    <View style={styles.previewRow}>
-                      <View style={styles.previewBox}>
-                        <Text style={styles.previewLabel}>Victory</Text>
-                        <Image source={pImages.victory} style={styles.previewImg} resizeMode="contain" />
-                      </View>
-                      <View style={styles.previewBox}>
-                        <Text style={styles.previewLabel}>Defeated</Text>
-                        <Image source={pImages.defeat} style={styles.previewImg} resizeMode="contain" />
-                      </View>
-                    </View>
-                  </ScrollView>
-                </View>
-              </View>
-            </Modal>
-          );
-        })()}
+      {previewItem && renderPreviewModal()}
 
-      {combinedList.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          <MaterialCommunityIcons name="bag-personal-outline" size={64} color="#CBD5E1" />
-          <Text style={styles.emptyTitle}>INVENTORY EMPTY</Text>
-          <Text style={styles.emptyBody}>
-            Items, potions, and equipment{'\n'}you collect will appear here.
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={combinedList}
-          renderItem={renderItem}
-          keyExtractor={(item, index) => item.item_id + index}
-          contentContainerStyle={styles.listContent}
-        />
-      )}
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        {/* ITEMS SECTION */}
+        {combinedList.length > 0 && (
+          <View>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>🎒 ITEMS</Text>
+            </View>
+            {combinedList.map((item, index) => (
+              <View key={item.item_id + index}>
+                {renderItemCard({ item })}
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* SKILLS SECTION */}
+        {purchasedSkills.length > 0 && (
+          <View>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <Text style={styles.sectionTitle}>⚡ PASSIVE SKILLS</Text>
+                <Text style={styles.equippedCount}>{equippedSkills.length}/3 Equipped</Text>
+              </View>
+            </View>
+            {purchasedSkills.map(skillId => (
+              <View key={skillId}>
+                {renderSkillCard({ item: skillId })}
+              </View>
+            ))}
+          </View>
+        )}
+
+        {combinedList.length === 0 && purchasedSkills.length === 0 && (
+          <View style={styles.emptyWrap}>
+            <MaterialCommunityIcons name="bag-personal-outline" size={64} color="#CBD5E1" />
+            <Text style={styles.emptyTitle}>INVENTORY EMPTY</Text>
+            <Text style={styles.emptyBody}>
+              Items, potions, and equipment{'\n'}you collect will appear here.
+            </Text>
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -232,12 +307,37 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
     marginTop: 2,
   },
+  sectionHeader: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: AuthColors.navy,
+  },
+  sectionTitle: {
+    fontFamily: Fonts.pixel,
+    fontSize: 14,
+    color: AuthColors.navy,
+    letterSpacing: 2,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  equippedCount: {
+    fontFamily: Fonts.vt323,
+    fontSize: 12,
+    color: '#8D99AE',
+  },
   emptyWrap: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
     gap: 12,
+    marginTop: 60,
   },
   emptyTitle: {
     fontFamily: Fonts.pixel,
@@ -280,6 +380,8 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: AuthColors.navy,
     padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
     shadowColor: AuthColors.navy,
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 1,
@@ -312,9 +414,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: AuthColors.navy,
   },
+  skillLevel: {
+    fontFamily: Fonts.vt323,
+    fontSize: 12,
+    color: '#8D99AE',
+    marginTop: 2,
+  },
   itemDesc: {
     fontFamily: Fonts.vt323,
-    fontSize: 16,
+    fontSize: 14,
     color: AuthColors.labelMuted,
     lineHeight: 18,
     marginBottom: 12,

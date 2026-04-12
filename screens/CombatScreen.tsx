@@ -12,6 +12,7 @@ import { useAudioStore, intensityToHaptic, playCombatBgm, stopCombatBgm, setBgmS
 import { usePoseEngine, MEDIAPIPE_WEBVIEW_HTML } from '@/hooks/usePoseEngine';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { EXERCISES } from '@/constants/game';
+import { SkillTriggersContainer, SkillTriggerEvent } from '@/components/SkillTrigger';
 
 // Each tick = 100ms; body must be visible for 30 ticks (3 seconds) to confirm
 const POSITION_TICKS_NEEDED = 30;
@@ -38,6 +39,8 @@ export default function CombatScreen() {
   const [localSeconds, setLocalSeconds]   = useState(battle?.enemy.timeLimit || 60);
   const [webViewReady, setWebViewReady]   = useState(false);
   const [showItemModal, setShowItemModal] = useState(!battle?.enemy.isEndurance && inventory.length > 0);
+  const [lastDamageDealt, setLastDamageDealt] = useState(0);  // NEW: Track last damage for display
+  const [skillTriggers, setSkillTriggers] = useState<SkillTriggerEvent[]>([]);  // NEW: Skill trigger notifications
 
   // ── Positioning phase state ────────────────────────────────────────────────
   // 'waiting'  = overlay shown, waiting for user to get into position
@@ -232,6 +235,27 @@ export default function CombatScreen() {
     return () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); };
   }, [isActive, resolveBattle, router, battle]);
 
+  // ── Battle phase listener (for victory via damage) ──────────────────────────
+  useEffect(() => {
+    if (!battle || battle.phase !== 'victory') return;
+    if (!isActive) return;
+    
+    stopCombatBgm();
+    setIsActive(false);
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    
+    // Resolve the victory battle (XP, stats, etc.)
+    resolveBattle('victory');
+    
+    // Fire victory speech
+    webViewRef.current?.injectJavaScript(`
+      if (typeof window.speakVictory === 'function') window.speakVictory();
+      true;
+    `);
+    
+    setTimeout(() => router.replace('/post-battle'), 800);
+  }, [battle?.phase, isActive, router, resolveBattle]);
+
   // ── Rep detection & flash ──────────────────────────────────────────────────
   useEffect(() => {
     if (!isActive || !battle) return;
@@ -243,6 +267,11 @@ export default function CombatScreen() {
       const scored = repCount - prevRepsRef.current;
       prevRepsRef.current = repCount;
       lastRepTimeRef.current = Date.now();
+      
+      // Calculate damage for this batch of reps
+      const damageDealt = battle.damagePerRep * scored;
+      setLastDamageDealt(Math.round(damageDealt));
+      
       for (let i = 0; i < scored; i++) registerRep();
 
       playThwackSound(); // THWACK!
@@ -266,29 +295,30 @@ export default function CombatScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle[style]).catch(() => {});
       }
 
-      if (hasPhases && repCount >= phaseGoal) {
-        setCurrentPhaseIndex(i => i + 1);
-      } else if (!battle.enemy.isEndurance && repCount >= (battle.effectiveReps ?? battle.enemy.repsRequired)) {
-        if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-        stopCombatBgm();
-        setIsActive(false);
-        // Fire victory speech
-        webViewRef.current?.injectJavaScript(`
-          if (typeof window.speakVictory === 'function') window.speakVictory();
-          true;
-        `);
-        resolveBattle('victory');
-        setTimeout(() => router.replace('/post-battle'), 800);
+      // Check for skill triggers
+      const equippedSkills = avatar.equippedSkills || [];
+      if (equippedSkills.includes('heavy_strike')) {
+        // Heavy Strike: every 5th rep is a critical hit
+        if (repCount % 5 === 0) {
+          const triggerId = `heavy_strike_${Date.now()}`;
+          setSkillTriggers(prev => [...prev, {
+            id: triggerId,
+            skillId: 'heavy_strike',
+            skillName: 'Heavy Strike',
+            timestamp: Date.now()
+          }]);
+        }
       }
+
     }
   }, [
     repCount, 
     isActive, 
-    battle, 
+    battle,
     registerRep, 
     resolveBattle, 
     router, 
-    audioPrefs.repVibrationEnabled, 
+    audioPrefs.repVibrationEnabled,
     audioPrefs.repVibrationIntensity,
     hasPhases,
     phaseGoal
@@ -311,7 +341,7 @@ export default function CombatScreen() {
   const flashOpacity = attackFlashAnim.interpolate({ inputRange: [0,1], outputRange: [0, 0.35] });
   const damageTransY = damageAnim.interpolate({ inputRange: [0,1], outputRange: [0,-50] });
   const damageOpacity = damageAnim.interpolate({ inputRange: [0,0.8,1], outputRange: [1,1,0] });
-  const hpPercent = Math.max(0, Math.min(100, (battle.enemyHpRemaining / battle.enemy.hp) * 100));
+  const hpPercent = Math.max(0, Math.min(100, (battle.enemyHpRemaining / battle.enemy.health) * 100));
 
   // ── DYNAMIC HEARTS CALCULATION ──
   const totalHearts = 5;
@@ -393,7 +423,7 @@ export default function CombatScreen() {
                   }
                 ]}
               >
-                -1
+                -{lastDamageDealt}
               </Animated.Text>
             </View>
             <View style={{ flex: 1 }}>
@@ -408,7 +438,7 @@ export default function CombatScreen() {
               </View>
             </View>
           </View>
-          <TouchableOpacity style={styles.fleeBtn} onPress={() => { stopCombatBgm(); resetBattle(); router.replace('/'); }}>
+          <TouchableOpacity style={styles.fleeBtn} onPress={() => { stopCombatBgm(); resolveBattle('defeat'); router.replace('/post-battle'); }}>
             <Text style={styles.fleeBtnText}>FLEE</Text>
           </TouchableOpacity>
         </View>
@@ -424,19 +454,19 @@ export default function CombatScreen() {
         </View>
       </View>
 
-      {/* ── ALERTS / REPS HUD ── */}
+      {/* ── ALERTS / DAMAGE HUD ── */}
       <View style={styles.repRow} pointerEvents="none">
         <View style={styles.repsLeftCard}>
           <Text style={styles.repsLeftVal}>
-            {battle.enemy.isEndurance ? '∞' : (battle.effectiveReps ?? battle.enemy.repsRequired)}
+            {battle.enemy.isEndurance ? '∞' : Math.round(battle.enemy.health)}
           </Text>
           <View style={styles.divThin} />
-          <Text style={styles.repsLeftLbl}>GOAL</Text>
+          <Text style={styles.repsLeftLbl}>MAX HP</Text>
         </View>
         <View style={styles.mainRepCard}>
-          <Text style={styles.mainRepVal}>{repCount}</Text>
+          <Text style={styles.mainRepVal}>{Math.round(battle.totalDamageDealt)}</Text>
           <View style={styles.divThick} />
-          <Text style={styles.mainRepLbl}>REPS</Text>
+          <Text style={styles.mainRepLbl}>DAMAGE</Text>
         </View>
       </View>
 
@@ -518,6 +548,12 @@ export default function CombatScreen() {
           <View style={[styles.exercisePill, { backgroundColor: badgeColor }]}><Text style={styles.exercisePillText}>{exerciseDef?.emoji} {exerciseDef?.label?.toUpperCase()}</Text></View>
         </View>
       )}
+
+      {/* Skill Triggers Visualization */}
+      <SkillTriggersContainer 
+        triggers={skillTriggers}
+        onTriggerComplete={(id) => setSkillTriggers(prev => prev.filter(t => t.id !== id))}
+      />
     </View>
   );
 }

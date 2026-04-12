@@ -86,8 +86,9 @@ export default function PostBattleScreen() {
     return null;
   }
 
+  const damageDealt = battle.totalDamageDealt;
+  const enemyHealth = battle.enemy.health;
   const repsCompleted = battle.repsCompleted;
-  const repsRequired = battle.enemy.repsRequired;
 
   if (isVictory) {
     const goldGained = battle.enemy.isEndurance ? Math.floor(repsCompleted * 1.5) : ((battle.enemy.coinReward || 50) + repsCompleted);
@@ -117,6 +118,7 @@ export default function PostBattleScreen() {
               <View style={styles.vRewardContent}>
                 <Text style={styles.vRewardXp}>+{battle.enemy.xpReward} XP</Text>
                 <Text style={styles.vRewardLoot}>Loot Gained: {goldGained} Gold</Text>
+                <Text style={{ ...styles.vRewardLoot, fontSize: 13, marginTop: 6, color: '#00C9A7' }}>Damage: {Math.round(damageDealt)} / {enemyHealth}</Text>
               </View>
 
               <TouchableOpacity style={styles.vBtn} onPress={handleContinue}>
@@ -131,7 +133,7 @@ export default function PostBattleScreen() {
   }
 
   // DEFEAT
-  const goldGainedDefeat = Math.floor(repsCompleted / 2);
+  const goldGainedDefeat = Math.floor(damageDealt / 2);
 
   return (
     <View style={styles.dScreen}>
@@ -146,7 +148,7 @@ export default function PostBattleScreen() {
           <View style={styles.dDialogBox}>
             <View style={styles.dDialogDecoration} />
             <Text style={styles.dDialogText}>
-              You only did <Text style={{ color: AuthColors.crimson, fontFamily: Fonts.pixel, fontSize: 16 }}>{repsCompleted} / {repsRequired}</Text> reps.
+              You dealt <Text style={{ color: AuthColors.crimson, fontFamily: Fonts.pixel, fontSize: 16 }}>{Math.round(damageDealt)} / {enemyHealth}</Text> damage.
             </Text>
             <View style={styles.dDialogDivider} />
             <Text style={styles.dDialogSub}>Rest up at the inn and try again!</Text>

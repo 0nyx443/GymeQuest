@@ -6,6 +6,7 @@ import {
   InventoryRow, CatalogItem, fetchStoreCatalog,
   fetchInventory, purchaseItem as dbPurchaseItem, consumeItem,
 } from '@/utils/inventory';
+import { PASSIVE_SKILLS } from '@/utils/skills';
 
 export interface PlayerStats {
   strength: number;
@@ -27,6 +28,8 @@ export interface AvatarState {
   defeatedEnemies: string[];
   purchasedSkins: string[];
   equippedSkin: string | null;
+  purchasedSkills: string[];
+  equippedSkills: string[];
   totalReps: number;
   totalBattles: number;
   victories: number;
@@ -39,6 +42,8 @@ export interface AvatarState {
 export interface ActiveBattle {
   enemy: Enemy;
   repsCompleted: number;
+  totalDamageDealt: number;  // NEW: Total damage dealt instead of reps
+  damagePerRep: number;       // NEW: Damage multiplier based on stats
   enemyHpRemaining: number;
   secondsRemaining: number;
   phase: 'idle' | 'countdown' | 'active' | 'victory' | 'defeat';
@@ -46,6 +51,7 @@ export interface ActiveBattle {
   // item effects active in this battle
   effectiveReps: number;        // may be lower than enemy.repsRequired (Elixir)
   activeEffect: CatalogItem | null;  // for display & XP multiplier
+  triggeredSkills: string[];    // NEW: Skills triggered this battle
 }
 
 interface GameStore {
@@ -71,11 +77,13 @@ interface GameStore {
   // Item actions
   loadInventory: () => Promise<void>;
   purchaseItem: (item: CatalogItem) => Promise<{ success: boolean; error?: string }>;
+  purchaseSkill: (skillId: string) => Promise<{ success: boolean; error?: string }>;
   equipSkin: (skinId: string | null) => void;
   queueItemEffect: (effect: CatalogItem) => void;
   clearPendingEffect: () => void;
   consumeQueuedItem: (itemId: string) => Promise<void>;
   useItemFromInventory: (item: CatalogItem) => Promise<{ success: boolean; error?: string }>;
+  toggleSkillEquip: (skillId: string) => void;
 
   // Battle actions
   startBattle: (enemy: Enemy) => void;
@@ -104,6 +112,15 @@ function xpProgress(xp: number, level: number): number {
   return Math.min((xp - base) / (next - base), 1);
 }
 
+/**
+ * Calculate damage per rep based on player stats
+ * Formula: 10 * (1 + (strength + agility + stamina) / 100)
+ */
+function calculateDamagePerRep(stats: PlayerStats): number {
+  const statSum = stats.strength + stats.agility + stats.stamina;
+  return 10 * (1 + statSum / 100);
+}
+
 export const useGameStore = create<GameStore>((set, get) => ({
   avatar: {
     name: 'Aethor',
@@ -119,6 +136,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     defeatedEnemies: [],
     purchasedSkins: [],
     equippedSkin: null,
+    purchasedSkills: [],
+    equippedSkills: [],
     totalReps: 0,
     totalBattles: 0,
     victories: 0,
@@ -169,9 +188,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
     
     const newState = get().avatar.claimedLevelRewards;
+    // Save to both AsyncStorage and sync to Supabase
     await AsyncStorage.setItem(`claimedLevelRewards_${userId}`, JSON.stringify(newState));
     
-    get().syncProfile().catch(() => {});
+    await get().syncProfile().catch(() => {});
   },
 
   gainXp: (amount) => set((state) => {
@@ -282,6 +302,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
           },
         }));
         get().syncProfile(); // Sync to AsyncStorage securely
+      } else if (item.item_type === 'skill' && item.skill_id) {
+        set((state) => ({
+          avatar: { 
+            ...state.avatar, 
+            coins: result.newCoins,
+            purchasedSkills: [...state.avatar.purchasedSkills, item.skill_id as string]
+          },
+        }));
+        get().syncProfile();
       } else {
         set((state) => ({
           avatar: { ...state.avatar, coins: result.newCoins },
@@ -300,10 +329,72 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return { success: result.success, error: result.error };
   },
 
+  purchaseSkill: async (skillId: string) => {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) return { success: false, error: 'Not logged in' };
+    
+    const skill = PASSIVE_SKILLS[skillId as any];
+    if (!skill) return { success: false, error: 'Skill not found' };
+    
+    const currentCoins = get().avatar.coins;
+    const purchasedSkills = get().avatar.purchasedSkills;
+    
+    // Check if already purchased
+    if (purchasedSkills.includes(skillId)) {
+      return { success: false, error: 'Skill already purchased' };
+    }
+    
+    // Check if enough coins
+    if (currentCoins < skill.purchaseCost) {
+      return { success: false, error: 'Not enough coins!' };
+    }
+    
+    const newCoins = currentCoins - skill.purchaseCost;
+    
+    // Deduct coins from profile
+    const { error: profileErr } = await supabase
+      .from('profiles')
+      .update({ coins: newCoins })
+      .eq('id', userData.user.id);
+    
+    if (profileErr) {
+      return { success: false, error: profileErr.message };
+    }
+    
+    // Update local state
+    set((state) => ({
+      avatar: {
+        ...state.avatar,
+        coins: newCoins,
+        purchasedSkills: [...state.avatar.purchasedSkills, skillId]
+      }
+    }));
+    
+    try {
+      await get().syncProfile();
+    } catch (err: any) {
+      console.error('Error syncing profile after skill purchase:', err);
+    }
+    return { success: true };
+  },
+
   equipSkin: (skinId) => {
     set((state) => ({
       avatar: { ...state.avatar, equippedSkin: skinId }
     }));
+    get().syncProfile();
+  },
+
+  toggleSkillEquip: (skillId) => {
+    set((state) => {
+      const equipped = state.avatar.equippedSkills.includes(skillId);
+      const newEquipped = equipped 
+        ? state.avatar.equippedSkills.filter(s => s !== skillId)
+        : [...state.avatar.equippedSkills, skillId];
+      return {
+        avatar: { ...state.avatar, equippedSkills: newEquipped }
+      };
+    });
     get().syncProfile();
   },
 
@@ -374,6 +465,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   startBattle: (enemy) => {
     const state = get();
     const pendingEffect = state.pendingItemEffect;
+    let damagePerRep = calculateDamagePerRep(state.avatar.stats);
+    
+    // Apply Double Damage skill if equipped
+    if (state.avatar.equippedSkills.includes('double_damage')) {
+      damagePerRep *= 2;
+    }
     
     // STARTING PASSIVE BUFFS:
     // 1. STR (Strength) = -1 Rep Required for every 10 points (to a minimum of 1 rep)
@@ -382,25 +479,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
     
     // 2. STA (Stamina) = +1 Second to the timer per point in Stamina
     let extraSeconds  = state.avatar.stats.stamina;
-
-    if (pendingEffect) {
-      if (pendingEffect.item_type === 'potion') {
-        // Potions reduce required reps by their effect_value
-        effectiveReps = Math.max(1, effectiveReps - pendingEffect.effect_value);
-      }
-      // Note: 'exp_boost' and 'streak_restore' are handled elsewhere.
+    
+    // POTIONS: Deal direct damage to enemy at battle start
+    let initialDamage = 0;
+    if (pendingEffect?.item_type === 'potion') {
+      // Potions deal direct damage (effect_value * 10 damage)
+      initialDamage = pendingEffect.effect_value * 10;
     }
 
     set({
       battle: {
         enemy,
         repsCompleted: 0,
-        enemyHpRemaining: enemy.hp,
+        totalDamageDealt: initialDamage,
+        damagePerRep,
+        enemyHpRemaining: Math.max(1, enemy.health - initialDamage),
         secondsRemaining: enemy.timeLimit + extraSeconds,
         phase: 'countdown',
         lastRepAt: null,
         effectiveReps,
         activeEffect: pendingEffect,
+        triggeredSkills: [],
       },
     });
   },
@@ -433,17 +532,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
   registerRep: () => set((state) => {
     if (!state.battle || state.battle.phase !== 'active') return state;
 
-    const repsNeeded = state.battle.effectiveReps;
-    const hpPerRep = state.battle.enemy.hp / repsNeeded;
     const newReps = state.battle.repsCompleted + 1;
-    const newHp = Math.max(0, state.battle.enemyHpRemaining - hpPerRep);
     const now = Date.now();
+    let damageThisRep = state.battle.damagePerRep;
+    const equippedSkills = state.avatar.equippedSkills;
+    
+    // ── HEAVY STRIKE: Every 5th rep deals 2x damage (critical hit) ──
+    if (equippedSkills.includes('heavy_strike') && newReps % 5 === 0) {
+      damageThisRep *= 2;
+    }
+    
+    const totalDamage = state.battle.totalDamageDealt + damageThisRep;
+    const enemyHealth = state.battle.enemy.health;
+    const newHp = Math.max(0, enemyHealth - totalDamage);
 
-    if (newReps >= repsNeeded) {
+    // Check if enemy is defeated
+    if (totalDamage >= enemyHealth) {
       return {
         battle: {
           ...state.battle,
           repsCompleted: newReps,
+          totalDamageDealt: totalDamage,
           enemyHpRemaining: 0,
           phase: 'victory',
           lastRepAt: now,
@@ -455,6 +564,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       battle: {
         ...state.battle,
         repsCompleted: newReps,
+        totalDamageDealt: totalDamage,
         enemyHpRemaining: newHp,
         lastRepAt: now,
       },
@@ -475,6 +585,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   resolveBattle: (outcome) => {
     const { battle, gainXp, boostStats, recordBattle } = get();
     if (!battle) return;
+    
+    // Set the battle phase so PostBattleScreen can determine victory/defeat UI
+    set((state) => ({
+      battle: state.battle ? { ...state.battle, phase: outcome } : null
+    }));
+    
     if (outcome === 'victory') {
       let finalXp = battle.enemy.xpReward;
       
@@ -487,6 +603,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (battle.activeEffect?.item_type === 'exp_boost') {
         finalXp *= battle.activeEffect.effect_value;
       }
+      
+      // ── ADRENALINE RUSH: 1.5x XP if 5 reps completed in under 15 seconds ──
+      const equippedSkills = get().avatar.equippedSkills;
+      if (equippedSkills.includes('adrenaline_rush')) {
+        // Check if any 5 reps were completed within 15 seconds
+        // We'll use a simple heuristic: if battle time < 15 seconds and reps >= 5
+        const battleDuration = battle.enemy.timeLimit - battle.secondsRemaining;
+        if (battle.repsCompleted >= 5 && battleDuration < 15) {
+          finalXp *= 1.5;
+        }
+      }
+      
       gainXp(finalXp);
       boostStats(battle.enemy.statBoosts as Partial<PlayerStats>);
     }
@@ -570,12 +698,31 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (loadedEquippedSkin) needsSkinsMigration = true;
     }
 
+    // Load skills from metadata or AsyncStorage
+    let loadedSkills = meta.purchasedSkills;
+    let loadedEquippedSkills = meta.equippedSkills;
+    if (!loadedSkills) {
+      const storedSkillsStr = await AsyncStorage.getItem(`purchasedSkills_${user.id}`);
+      loadedSkills = storedSkillsStr ? JSON.parse(storedSkillsStr) : [];
+      if (loadedSkills.length > 0) needsSkinsMigration = true;
+    }
+    if (!loadedEquippedSkills) {
+      const storedEquippedStr = await AsyncStorage.getItem(`equippedSkills_${user.id}`);
+      loadedEquippedSkills = storedEquippedStr ? JSON.parse(storedEquippedStr) : [];
+      if (loadedEquippedSkills.length > 0) needsSkinsMigration = true;
+    }
+
     if (data.last_active_date !== todayStr) {
       loadedDefeatedEnemies = [];
     }
 
-    const storedClaimedLevelsStr = await AsyncStorage.getItem(`claimedLevelRewards_${user.id}`);
-    const loadedClaimedLevels = storedClaimedLevelsStr ? JSON.parse(storedClaimedLevelsStr) : [];
+    // Load claimed level rewards from metadata first, fallback to AsyncStorage
+    let loadedClaimedLevels = meta.claimed_level_rewards;
+    if (!loadedClaimedLevels) {
+      const storedClaimedLevelsStr = await AsyncStorage.getItem(`claimedLevelRewards_${user.id}`);
+      loadedClaimedLevels = storedClaimedLevelsStr ? JSON.parse(storedClaimedLevelsStr) : [];
+      if (loadedClaimedLevels.length > 0) needsSkinsMigration = true; // trigger sync
+    }
 
     // Daily Login Reward Check
     const lastLoginReward = await AsyncStorage.getItem(`lastLoginReward_${user.id}`);
@@ -618,6 +765,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         defeatedEnemies: loadedDefeatedEnemies,
         purchasedSkins: loadedSkins,
         equippedSkin: loadedEquippedSkin,
+        purchasedSkills: loadedSkills,
+        equippedSkills: loadedEquippedSkills,
         birthday: data.birthday,
         sex: data.sex,
         height_cm: data.height_cm,
@@ -642,52 +791,83 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   syncProfile: async () => {
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData?.user;
-    if (!user) return;
-    const state = get().avatar;
-    
-    // Save daily progression state locally
-    await AsyncStorage.setItem(`defeatedEnemies_${user.id}`, JSON.stringify(state.defeatedEnemies));
-    await AsyncStorage.setItem(`purchasedSkins_${user.id}`, JSON.stringify(state.purchasedSkins));
-    
-    if (state.equippedSkin) {
-      await AsyncStorage.setItem(`equippedSkin_${user.id}`, state.equippedSkin);
-    } else {
-      await AsyncStorage.removeItem(`equippedSkin_${user.id}`);
-    }
-
-    if (state.lastEnduranceDate) {
-      await AsyncStorage.setItem(`lastEnduranceDate_${user.id}`, state.lastEnduranceDate);
-    }
-    
-    // Sync to user_metadata
-    await supabase.auth.updateUser({
-      data: {
-        purchasedSkins: state.purchasedSkins,
-        equippedSkin: state.equippedSkin || null
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData?.user;
+      if (!user) return;
+      const state = get().avatar;
+      
+      // Save daily progression state locally - use Promise.all for parallelization
+      await Promise.all([
+        AsyncStorage.setItem(`defeatedEnemies_${user.id}`, JSON.stringify(state.defeatedEnemies)),
+        AsyncStorage.setItem(`purchasedSkins_${user.id}`, JSON.stringify(state.purchasedSkins)),
+        AsyncStorage.setItem(`purchasedSkills_${user.id}`, JSON.stringify(state.purchasedSkills)),
+        AsyncStorage.setItem(`equippedSkills_${user.id}`, JSON.stringify(state.equippedSkills)),
+        state.equippedSkin 
+          ? AsyncStorage.setItem(`equippedSkin_${user.id}`, state.equippedSkin)
+          : AsyncStorage.removeItem(`equippedSkin_${user.id}`),
+        state.lastEnduranceDate
+          ? AsyncStorage.setItem(`lastEnduranceDate_${user.id}`, state.lastEnduranceDate)
+          : Promise.resolve()
+      ]);
+      
+      // Sync to user_metadata (with timeout)
+      const updateUserPromise = supabase.auth.updateUser({
+        data: {
+          purchasedSkins: state.purchasedSkins,
+          equippedSkin: state.equippedSkin || null,
+          purchasedSkills: state.purchasedSkills,
+          equippedSkills: state.equippedSkills,
+          claimed_level_rewards: state.claimedLevelRewards
+        }
+      });
+      
+      // Set timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Supabase auth update timeout')), 10000)
+      );
+      
+      try {
+        await Promise.race([updateUserPromise, timeoutPromise]);
+      } catch (authErr) {
+        console.warn('Auth metadata sync warning:', authErr);
+        // Don't fail the whole sync just because metadata update failed
       }
-    });
 
-    await supabase.from('profiles').upsert({
-      id: user.id,
-      name: state.name,
-      level: state.level,
-      exp: state.xp,
-      str: state.stats.strength,
-      agi: state.stats.agility,
-      sta: state.stats.stamina,
-      battles: state.totalBattles,
-      victories: state.victories,
-      total_reps: state.totalReps,
-      coins: state.coins,
-      current_streak: state.currentStreak,
-      last_active_date: state.lastActiveDate,
-      birthday: state.birthday,
-      sex: state.sex,
-      height_cm: state.height_cm,
-      weight_kg: state.weight_kg,
-    });
+      // Sync to profiles table
+      const profilesPromise = supabase.from('profiles').upsert({
+        id: user.id,
+        name: state.name,
+        level: state.level,
+        exp: state.xp,
+        str: state.stats.strength,
+        agi: state.stats.agility,
+        sta: state.stats.stamina,
+        battles: state.totalBattles,
+        victories: state.victories,
+        total_reps: state.totalReps,
+        coins: state.coins,
+        current_streak: state.currentStreak,
+        last_active_date: state.lastActiveDate,
+        claimed_level_rewards: state.claimedLevelRewards,
+        birthday: state.birthday,
+        sex: state.sex,
+        height_cm: state.height_cm,
+        weight_kg: state.weight_kg,
+      });
+      
+      const profileTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Supabase profiles update timeout')), 10000)
+      );
+      
+      try {
+        await Promise.race([profilesPromise, profileTimeoutPromise]);
+      } catch (profileErr) {
+        console.warn('Profile sync warning:', profileErr);
+      }
+    } catch (err) {
+      console.error('syncProfile error:', err);
+    }
   },
 }));
 

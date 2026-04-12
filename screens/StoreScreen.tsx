@@ -1,15 +1,18 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Alert, Animated, Modal, Image, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Animated, Modal, Image, ScrollView } from 'react-native';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useGameStore } from '@/store/gameStore';
 import { CatalogItem, getItemImage } from '@/utils/inventory';
+import { PASSIVE_SKILLS } from '@/utils/skills';
 
 export default function StoreScreen() {
   const coins = useGameStore((s) => s.avatar?.coins ?? 0);
   const catalog = useGameStore((s) => s.catalog);
   const purchasedSkins = useGameStore((s) => s.avatar.purchasedSkins || []);
+  const purchasedSkills = useGameStore((s) => s.avatar.purchasedSkills || []);
   const purchaseItem = useGameStore((s) => s.purchaseItem);
+  const purchaseSkill = useGameStore((s) => s.purchaseSkill);
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
 
   const [previewItem, setPreviewItem] = useState<CatalogItem | null>(null);
@@ -18,7 +21,7 @@ export default function StoreScreen() {
   const [purchasedItemName, setPurchasedItemName] = useState("");
   const rewardScaleAnim = useRef(new Animated.Value(0)).current;
 
-  const handlePurchase = useCallback(async (item: CatalogItem) => {
+  const handlePurchaseItem = useCallback(async (item: CatalogItem) => {
     if (coins < item.price) {
       Alert.alert("Checkout Failed", "Not enough coins!");
       return;
@@ -40,7 +43,29 @@ export default function StoreScreen() {
     }
   }, [coins, purchaseItem, rewardScaleAnim]);
 
-  const renderItem = useCallback(({ item }: { item: CatalogItem }) => {
+  const handlePurchaseSkill = useCallback(async (skillId: string) => {
+    if (coins < PASSIVE_SKILLS[skillId as any].purchaseCost) {
+      Alert.alert("Checkout Failed", "Not enough coins!");
+      return;
+    }
+    setPurchasingId(skillId);
+    const result = await purchaseSkill(skillId as any);
+    setPurchasingId(null);
+    
+    if (result.success) {
+      setPurchasedItemName(PASSIVE_SKILLS[skillId as any].name);
+      setRewardAnimVisible(true);
+      Animated.sequence([
+        Animated.spring(rewardScaleAnim, { toValue: 1.2, friction: 3, useNativeDriver: true }),
+        Animated.timing(rewardScaleAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
+        Animated.timing(rewardScaleAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]).start(() => setRewardAnimVisible(false));
+    } else {
+      Alert.alert("Purchase failed", result.error);
+    }
+  }, [coins, purchaseSkill, rewardScaleAnim]);
+
+  const renderItemCard = useCallback(({ item }: { item: CatalogItem }) => {
     const isSkin = item.item_type === 'skin';
     const isOwned = isSkin && purchasedSkins.includes(item.skin_id || '');
     
@@ -73,7 +98,7 @@ export default function StoreScreen() {
           (isOwned || coins < item.price || purchasingId === item.id) && styles.buyButtonDisabled,
           isOwned && styles.buyButtonOwned
         ]} 
-        onPress={() => handlePurchase(item)}
+        onPress={() => handlePurchaseItem(item)}
         disabled={isOwned || coins < item.price || purchasingId === item.id}
       >
         {purchasingId === item.id ? (
@@ -83,7 +108,43 @@ export default function StoreScreen() {
         )}
       </TouchableOpacity>
     </TouchableOpacity>
-  )}, [coins, purchasingId, handlePurchase, purchasedSkins]);
+  )}, [coins, purchasingId, handlePurchaseItem, purchasedSkins]);
+
+  const renderSkillCard = useCallback(({ item }: { item: string }) => {
+    const skill = PASSIVE_SKILLS[item as any];
+    const isOwned = purchasedSkills.includes(item as any);
+    const canAfford = coins >= skill.purchaseCost;
+    
+    return (
+    <TouchableOpacity 
+      style={styles.itemCard}
+      activeOpacity={0.9}
+    >
+      <View style={styles.itemHeader}>
+        <Text style={{ fontSize: 32, marginRight: 12 }}>{skill.icon}</Text>
+        <View style={styles.itemTitleContainer}>
+          <Text style={styles.itemName}>{skill.name}</Text>
+          <Text style={styles.itemPrice}>{skill.purchaseCost} Coins</Text>
+        </View>
+      </View>
+      <Text style={styles.itemDesc}>{skill.description}</Text>
+      <TouchableOpacity 
+        style={[
+          styles.buyButton, 
+          (isOwned || !canAfford || purchasingId === item) && styles.buyButtonDisabled,
+          isOwned && styles.buyButtonOwned
+        ]} 
+        onPress={() => handlePurchaseSkill(item)}
+        disabled={isOwned || !canAfford || purchasingId === item}
+      >
+        {purchasingId === item ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <Text style={styles.buyText}>{isOwned ? 'OWNED' : 'BUY'}</Text>
+        )}
+      </TouchableOpacity>
+    </TouchableOpacity>
+  )}, [coins, purchasingId, handlePurchaseSkill, purchasedSkills]);
 
   const renderPreviewModal = () => {
     if (!previewItem) return null;
@@ -106,7 +167,6 @@ export default function StoreScreen() {
                 defeat: require('@/assets/images/Atom-Eve_defeated.png')
             };
         }
-        // Default m_series
         return {
             profile: require('@/assets/images/m_avatar.png'),
             idle: require('@/assets/images/m_battle.png'),
@@ -155,7 +215,7 @@ export default function StoreScreen() {
               <TouchableOpacity 
                 style={[styles.buyButton, { height: 48, justifyContent: 'center' }, (isOwned || coins < previewItem.price) && styles.buyButtonDisabled]} 
                 onPress={() => {
-                  handlePurchase(previewItem);
+                  handlePurchaseItem(previewItem);
                   setPreviewItem(null);
                 }}
                 disabled={isOwned || coins < previewItem.price}
@@ -169,6 +229,10 @@ export default function StoreScreen() {
     );
   };
 
+  const potions = catalog.filter(c => c.item_type === 'potion');
+  const cosmetics = catalog.filter(c => c.item_type === 'skin');
+  const skillIds = Object.keys(PASSIVE_SKILLS);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -180,12 +244,49 @@ export default function StoreScreen() {
         </View>
       </View>
 
-      <FlatList
-        data={catalog}
-        renderItem={renderItem}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.list}
-      />
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* POTIONS SECTION */}
+        {potions.length > 0 && (
+          <View>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>🧪 POTIONS</Text>
+            </View>
+            {potions.map(item => (
+              <View key={item.id}>
+                {renderItemCard({ item })}
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* SKILLS SECTION */}
+        {skillIds.length > 0 && (
+          <View>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>⚡ PASSIVE SKILLS</Text>
+            </View>
+            {skillIds.map(skillId => (
+              <View key={skillId}>
+                {renderSkillCard({ item: skillId })}
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* COSMETICS SECTION */}
+        {cosmetics.length > 0 && (
+          <View>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>👕 COSMETICS</Text>
+            </View>
+            {cosmetics.map(item => (
+              <View key={item.id}>
+                {renderItemCard({ item })}
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
 
       {renderPreviewModal()}
 
@@ -249,12 +350,28 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginTop: 2,
   },
-  list: { padding: 16, gap: 16 },
+  scrollContent: {
+    padding: 16,
+    gap: 16,
+  },
+  sectionHeader: {
+    paddingVertical: 12,
+    marginBottom: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: AuthColors.navy,
+  },
+  sectionTitle: {
+    fontFamily: Fonts.pixel,
+    fontSize: 16,
+    color: AuthColors.navy,
+    letterSpacing: 2,
+  },
   itemCard: {
     backgroundColor: '#FFFFFF',
     borderWidth: 3,
     borderColor: AuthColors.navy,
     padding: 16,
+    marginBottom: 12,
     shadowColor: AuthColors.navy,
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 1,

@@ -54,19 +54,23 @@ export function ProfileLicense() {
 
     const getTodayRepsData = () => {
       const today = new Date().toISOString().split('T')[0];
-      const todayReps = avatar.todayReps || { date: today, push_up: 0, squat: 0 };
+      const todayReps = avatar.todayReps || { date: today, push_up: 0, squat: 0, sit_up: 0, pull_up: 0 };
       
       // If the stored todayReps is from an older day, return 0s
       if (todayReps.date !== today) {
         return [
           { label: 'PUSH-UP', reps: 0 },
           { label: 'SQUAT', reps: 0 },
+          { label: 'SIT-UP', reps: 0 },
+          { label: 'PULL-UP', reps: 0 },
         ];
       }
 
       return [
         { label: 'PUSH-UP', reps: todayReps.push_up || 0 },
         { label: 'SQUAT', reps: todayReps.squat || 0 },
+        { label: 'SIT-UP', reps: todayReps.sit_up || 0 },
+        { label: 'PULL-UP', reps: todayReps.pull_up || 0 },
       ];
     };
 

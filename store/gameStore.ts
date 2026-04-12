@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
-import { Enemy, StatKey, XP_TABLE, MAX_LEVEL } from '@/constants/game';
+import { Enemy, ExerciseType, StatKey, XP_TABLE, MAX_LEVEL } from '@/constants/game';
 import {
   InventoryRow, CatalogItem, fetchStoreCatalog,
   fetchInventory, purchaseItem as dbPurchaseItem, consumeItem,
@@ -28,7 +28,7 @@ export interface AvatarState {
   purchasedSkins: string[];
   equippedSkin: string | null;
   totalReps: number;
-  todayReps: { date: string; push_up: number; squat: number; }; // NEW: For Today's reps
+  todayReps: { date: string } & Record<ExerciseType, number>; // For Today's reps
   totalBattles: number;
   victories: number;
   birthday?: string;
@@ -121,7 +121,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     purchasedSkins: [],
     equippedSkin: null,
     totalReps: 0,
-    todayReps: { date: '', push_up: 0, squat: 0 },
+    todayReps: { date: '', push_up: 0, squat: 0, sit_up: 0, pull_up: 0 },
     totalBattles: 0,
     victories: 0,
   },
@@ -238,17 +238,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastEnduranceDate = todayStr;
     }
 
-    const prevTodayReps = state.avatar.todayReps || { date: '', push_up: 0, squat: 0 };
+    const prevTodayReps = state.avatar.todayReps || { date: '', push_up: 0, squat: 0, sit_up: 0, pull_up: 0 };
     let newTodayReps = { ...prevTodayReps };
     if (newTodayReps.date !== todayStr) {
-      newTodayReps = { date: todayStr, push_up: 0, squat: 0 };
+      newTodayReps = { date: todayStr, push_up: 0, squat: 0, sit_up: 0, pull_up: 0 };
     }
     
-    if (enemy.exercise === 'push_up') {
-      newTodayReps.push_up += reps;
-    } else if (enemy.exercise === 'squat') {
-      newTodayReps.squat += reps;
-    }
+    newTodayReps[enemy.exercise] = (newTodayReps[enemy.exercise] ?? 0) + reps;
 
     return {
       avatar: {
@@ -517,7 +513,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   resetBattle: () => set({ battle: null }),
-  resetAvatar: () => set({ avatar: { name: 'Aethor', class: 'Iron Aspirant', level: 1, xp: 0, coins: 0, currentStreak: 0, lastActiveDate: null, lastEnduranceDate: null, claimedLevelRewards: [], stats: { strength: 0, agility: 0, stamina: 0 }, defeatedEnemies: [], totalReps: 0, todayReps: { date: '', push_up: 0, squat: 0 }, totalBattles: 0, victories: 0, purchasedSkins: [], equippedSkin: null } }),
+  resetAvatar: () => set({ avatar: { name: 'Aethor', class: 'Iron Aspirant', level: 1, xp: 0, coins: 0, currentStreak: 0, lastActiveDate: null, lastEnduranceDate: null, claimedLevelRewards: [], stats: { strength: 0, agility: 0, stamina: 0 }, defeatedEnemies: [], totalReps: 0, todayReps: { date: '', push_up: 0, squat: 0, sit_up: 0, pull_up: 0 }, totalBattles: 0, victories: 0, purchasedSkins: [], equippedSkin: null } }),
   setAvatar: (avatarData) => set((state) => ({ avatar: { ...state.avatar, ...avatarData } })),
   setProfileNeedsName: (need) => set({ profileNeedsName: need }),
   setShowTutorial: (show) => set({ showTutorial: show }),
@@ -593,9 +589,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const loadedClaimedLevels = storedClaimedLevelsStr ? JSON.parse(storedClaimedLevelsStr) : [];
 
     const storedTodayRepsStr = await AsyncStorage.getItem(`todayReps_${user.id}`);
-    let loadedTodayReps = storedTodayRepsStr ? JSON.parse(storedTodayRepsStr) : { date: '', push_up: 0, squat: 0 };
+    let loadedTodayReps = storedTodayRepsStr ? JSON.parse(storedTodayRepsStr) : { date: '', push_up: 0, squat: 0, sit_up: 0, pull_up: 0 };
     if (loadedTodayReps.date !== todayStr) {
-      loadedTodayReps = { date: todayStr, push_up: 0, squat: 0 };
+      loadedTodayReps = { date: todayStr, push_up: 0, squat: 0, sit_up: 0, pull_up: 0 };
     }
 
     // Daily Login Reward Check
@@ -672,7 +668,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Save daily progression state locally
     await AsyncStorage.setItem(`defeatedEnemies_${user.id}`, JSON.stringify(state.defeatedEnemies));
     await AsyncStorage.setItem(`purchasedSkins_${user.id}`, JSON.stringify(state.purchasedSkins));
-    await AsyncStorage.setItem(`todayReps_${user.id}`, JSON.stringify(state.todayReps || { date: '', push_up: 0, squat: 0 }));
+    await AsyncStorage.setItem(`todayReps_${user.id}`, JSON.stringify(state.todayReps || { date: '', push_up: 0, squat: 0, sit_up: 0, pull_up: 0 }));
     
     if (state.equippedSkin) {
       await AsyncStorage.setItem(`equippedSkin_${user.id}`, state.equippedSkin);

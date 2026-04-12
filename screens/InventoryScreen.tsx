@@ -48,7 +48,31 @@ export default function InventoryScreen() {
         .map(c => ({ item_id: c.id, quantity: 1 }));
   
   const combinedList = [...consumableList, ...skinList];
-
+  const getPreviewImages = (skinId: string) => {
+      if (skinId === 'omni_man') {
+          return {
+              profile: require('@/assets/images/Omni-Man_profile.png'),
+              idle: require('@/assets/images/Omni-Man_combat_idle.png'),
+              victory: require('@/assets/images/Omni-Man_victory.png'),
+              defeat: require('@/assets/images/Omni-Man_defeated.png')
+          };
+      }
+      if (skinId === 'atom_eve') {
+          return {
+              profile: require('@/assets/images/Atom-Eve_profile.png'),
+              idle: require('@/assets/images/Atom-Eve_combat_idle.png'),
+              victory: require('@/assets/images/Atom-Eve_victory.png'),
+              defeat: require('@/assets/images/Atom-Eve_defeated.png')
+          };
+      }
+      // Default m_series
+      return {
+          profile: require('@/assets/images/m_avatar.png'),
+          idle: require('@/assets/images/m_battle.png'),
+          victory: require('@/assets/images/m_victory.png'),
+          defeat: require('@/assets/images/m_defeated.png')
+      };
+  };
   const renderConsumable = (item: InventoryRow, index: number) => {
     const catalogItem = catalog.find((c) => c.id === item.item_id);
     if (!catalogItem) return null;
@@ -100,15 +124,13 @@ export default function InventoryScreen() {
     const catalogItem = catalog.find((c) => c.id === item.item_id);
     if (!catalogItem) return null;
 
+    const skinImages = getPreviewImages(catalogItem.skin_id || '');
+
     return (
       <View key={item.item_id + index} style={styles.itemCard}>
         <View style={styles.itemHeader}>
           <View style={styles.iconBox}>
-            {getItemImage(catalogItem.name) ? (
-              <Image source={getItemImage(catalogItem.name)} style={{ width: 36, height: 36 }} resizeMode="contain" />
-            ) : (
-              <Ionicons name={catalogItem.icon_name as any || "cube"} size={36} color={AuthColors.navy} />
-            )}
+            <Image source={skinImages.profile} style={{ width: 44, height: 44 }} resizeMode="contain" />
           </View>
           <View style={styles.itemInfo}>
             <Text style={styles.itemName}>{catalogItem.name}</Text>
@@ -146,33 +168,8 @@ export default function InventoryScreen() {
         <Text style={styles.headerSub}>YOUR ITEMS & GEAR</Text>
       </View>
 
-{previewItem && (() => {
+        {previewItem && (() => {
           if (previewItem.item_type === 'skin') {
-            const getPreviewImages = (skinId: string) => {
-              if (skinId === 'omni_man') {
-                  return {
-                      profile: require('@/assets/images/Omni-Man_profile.png'),
-                      idle: require('@/assets/images/Omni-Man_combat_idle.png'),
-                      victory: require('@/assets/images/Omni-Man_victory.png'),
-                      defeat: require('@/assets/images/Omni-Man_defeated.png')
-                  };
-              }
-              if (skinId === 'atom_eve') {
-                  return {
-                      profile: require('@/assets/images/Atom-Eve_profile.png'),
-                      idle: require('@/assets/images/Atom-Eve_combat_idle.png'),
-                      victory: require('@/assets/images/Atom-Eve_victory.png'),
-                      defeat: require('@/assets/images/Atom-Eve_defeated.png')
-                  };
-              }
-              // Default m_series
-              return {
-                  profile: require('@/assets/images/m_avatar.png'),
-                  idle: require('@/assets/images/m_battle.png'),
-                  victory: require('@/assets/images/m_victory.png'),
-                  defeat: require('@/assets/images/m_defeated.png')
-              };
-            };
             const pImages = getPreviewImages(previewItem.skin_id || '');
             
             return (

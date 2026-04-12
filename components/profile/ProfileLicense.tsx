@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, DimensionValue } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Image, DimensionValue, Modal, TouchableOpacity } from 'react-native';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { useGameStore } from '@/store/gameStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -48,6 +48,26 @@ export function ProfileLicense() {
             age--;
         }
         return age;
+    };
+
+    const [showDailyModal, setShowDailyModal] = useState(false);
+
+    const getTodayRepsData = () => {
+      const today = new Date().toISOString().split('T')[0];
+      const todayReps = avatar.todayReps || { date: today, push_up: 0, squat: 0 };
+      
+      // If the stored todayReps is from an older day, return 0s
+      if (todayReps.date !== today) {
+        return [
+          { label: 'PUSH-UP', reps: 0 },
+          { label: 'SQUAT', reps: 0 },
+        ];
+      }
+
+      return [
+        { label: 'PUSH-UP', reps: todayReps.push_up || 0 },
+        { label: 'SQUAT', reps: todayReps.squat || 0 },
+      ];
     };
 
     return (
@@ -177,17 +197,53 @@ export function ProfileLicense() {
                         <Text style={styles.recordVal}>{avatar.victories.toLocaleString()}</Text>
                     </View>
                     <View style={styles.recordCard}>
-                        <MaterialCommunityIcons name="flash-outline" size={20} color="#3D494C" />
-                        <Text style={styles.recordLabel}>TOTAL REPS</Text>
-                        <Text style={styles.recordVal}>{avatar.totalReps.toLocaleString()}</Text>
-                    </View>
-                    <View style={styles.recordCard}>
                         <MaterialCommunityIcons name="fire" size={20} color={AuthColors.crimson} />
                         <Text style={styles.recordLabel}>CURRENT STREAK</Text>
                         <Text style={styles.recordVal}>{avatar.currentStreak} DAYS</Text>
                     </View>
+                    <View style={[styles.recordCard, { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+                        <View>
+                            <MaterialCommunityIcons name="flash-outline" size={20} color="#3D494C" />
+                            <Text style={styles.recordLabel}>TOTAL REPS</Text>
+                            <Text style={styles.recordVal}>{avatar.totalReps.toLocaleString()}</Text>
+                        </View>
+                        <TouchableOpacity style={styles.viewTodayBtn} onPress={() => setShowDailyModal(true)} activeOpacity={0.7}>
+                            <MaterialCommunityIcons name="calendar-star" size={18} color="#FFFFFF" style={{ marginBottom: 4 }} />
+                            <Text style={styles.viewTodayBtnText}>TODAY'S REPS</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </View>
+
+            <Modal
+              visible={showDailyModal}
+              transparent={true}
+              animationType="fade"
+              onRequestClose={() => setShowDailyModal(false)}
+            >
+              <View style={styles.modalBg}>
+                <View style={styles.modalCard}>
+                  <Text style={styles.modalTitle}>TODAY'S REPS</Text>
+                  
+                  {getTodayRepsData().map((item, idx) => (
+                    <View key={idx} style={styles.modalRow}>
+                      <View>
+                        <Text style={styles.modalLabel}>{item.label}</Text>
+                      </View>
+                      <Text style={styles.modalReps}>{item.reps} REPS</Text>
+                    </View>
+                  ))}
+
+                  <TouchableOpacity 
+                    style={styles.modalBtn}
+                    onPress={() => setShowDailyModal(false)}
+                  >
+                    <Text style={styles.modalBtnText}>CLOSE</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
+
         </View>
     );
 }
@@ -225,5 +281,16 @@ const styles = StyleSheet.create({
   recordsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   recordCard: { width: '48%', backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: AuthColors.navy, padding: 12, shadowColor: AuthColors.navy, shadowOffset: { width: 3, height: 3 }, shadowOpacity: 1, shadowRadius: 0, elevation: 3 },
   recordLabel: { fontFamily: Fonts.pixel, fontSize: 8, color: '#3D494C', marginTop: 8, lineHeight: 12 },
-  recordVal: { fontFamily: Fonts.vt323, fontSize: 24, color: AuthColors.crimson, marginTop: 4 }
+  recordVal: { fontFamily: Fonts.vt323, fontSize: 24, color: AuthColors.crimson, marginTop: 4 },
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalCard: { width: '100%', backgroundColor: '#FFFFFF', borderWidth: 4, borderColor: AuthColors.navy, padding: 20, shadowColor: AuthColors.navy, shadowOffset: { width: 6, height: 6 }, shadowOpacity: 1, shadowRadius: 0, elevation: 6 },
+  modalTitle: { fontFamily: Fonts.pixel, fontSize: 20, color: AuthColors.crimson, textAlign: 'center', marginBottom: 24 },
+  modalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC', borderWidth: 2, borderColor: '#CBD5E1', padding: 12, marginBottom: 12 },
+  modalLabel: { fontFamily: Fonts.vt323, fontSize: 16, color: '#3D494C' },
+  modalDate: { fontFamily: Fonts.pixel, fontSize: 8, color: '#64748B', marginTop: 4 },
+  modalReps: { fontFamily: Fonts.vt323, fontSize: 24, color: AuthColors.navy },
+  modalBtn: { backgroundColor: AuthColors.navy, paddingVertical: 12, alignItems: 'center', marginTop: 12, borderWidth: 2, borderColor: '#FFFFFF' },
+  modalBtnText: { fontFamily: Fonts.pixel, fontSize: 12, color: '#FFFFFF' },
+  viewTodayBtn: { backgroundColor: AuthColors.navy, paddingVertical: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF' },
+  viewTodayBtnText: { fontFamily: Fonts.pixel, fontSize: 10, color: '#FFFFFF' }
 });

@@ -40,6 +40,32 @@ export default function StoreScreen() {
     }
   }, [coins, purchaseItem, rewardScaleAnim]);
 
+  const getPreviewImages = (skinId: string) => {
+    if (skinId === 'omni_man') {
+        return {
+            profile: require('@/assets/images/Omni-Man_profile.png'),
+            idle: require('@/assets/images/Omni-Man_combat_idle.png'),
+            victory: require('@/assets/images/Omni-Man_victory.png'),
+            defeat: require('@/assets/images/Omni-Man_defeated.png')
+        };
+    }
+    if (skinId === 'atom_eve') {
+        return {
+            profile: require('@/assets/images/Atom-Eve_profile.png'),
+            idle: require('@/assets/images/Atom-Eve_combat_idle.png'),
+            victory: require('@/assets/images/Atom-Eve_victory.png'),
+            defeat: require('@/assets/images/Atom-Eve_defeated.png')
+        };
+    }
+    // Default m_series
+    return {
+        profile: require('@/assets/images/m_avatar.png'),
+        idle: require('@/assets/images/m_battle.png'),
+        victory: require('@/assets/images/m_victory.png'),
+        defeat: require('@/assets/images/m_defeated.png')
+    };
+  };
+
   const renderItem = useCallback(({ item }: { item: CatalogItem }) => {
     const isSkin = item.item_type === 'skin';
     const isOwned = isSkin && purchasedSkins.includes(item.skin_id || '');
@@ -51,7 +77,9 @@ export default function StoreScreen() {
       activeOpacity={isSkin ? 0.7 : 1}
     >
       <View style={styles.itemHeader}>
-        {getItemImage(item.name) ? (
+        {isSkin ? (
+          <Image source={getPreviewImages(item.skin_id || '').profile} style={{ width: 44, height: 44 }} resizeMode="contain" />
+        ) : getItemImage(item.name) ? (
           <Image source={getItemImage(item.name)} style={{ width: 32, height: 32 }} resizeMode="contain" />
         ) : (
           <Ionicons name={item.icon_name as any || "cube"} size={32} color={AuthColors.navy} />
@@ -88,32 +116,6 @@ export default function StoreScreen() {
   const renderPreviewModal = () => {
     if (!previewItem) return null;
     const isOwned = purchasedSkins.includes(previewItem.skin_id || '');
-
-    const getPreviewImages = (skinId: string) => {
-        if (skinId === 'omni_man') {
-            return {
-                profile: require('@/assets/images/Omni-Man_profile.png'),
-                idle: require('@/assets/images/Omni-Man_combat_idle.png'),
-                victory: require('@/assets/images/Omni-Man_victory.png'),
-                defeat: require('@/assets/images/Omni-Man_defeated.png')
-            };
-        }
-        if (skinId === 'atom_eve') {
-            return {
-                profile: require('@/assets/images/Atom-Eve_profile.png'),
-                idle: require('@/assets/images/Atom-Eve_combat_idle.png'),
-                victory: require('@/assets/images/Atom-Eve_victory.png'),
-                defeat: require('@/assets/images/Atom-Eve_defeated.png')
-            };
-        }
-        // Default m_series
-        return {
-            profile: require('@/assets/images/m_avatar.png'),
-            idle: require('@/assets/images/m_battle.png'),
-            victory: require('@/assets/images/m_victory.png'),
-            defeat: require('@/assets/images/m_defeated.png')
-        };
-    };
     
     const pImages = getPreviewImages(previewItem.skin_id || '');
 

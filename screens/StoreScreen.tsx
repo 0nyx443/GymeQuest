@@ -1,15 +1,18 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Alert, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Alert, Animated, Modal, Image, ScrollView } from 'react-native';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useGameStore } from '@/store/gameStore';
-import { CatalogItem } from '@/utils/inventory';
+import { CatalogItem, getItemImage } from '@/utils/inventory';
 
 export default function StoreScreen() {
   const coins = useGameStore((s) => s.avatar?.coins ?? 0);
   const catalog = useGameStore((s) => s.catalog);
+  const purchasedSkins = useGameStore((s) => s.avatar.purchasedSkins || []);
   const purchaseItem = useGameStore((s) => s.purchaseItem);
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
+
+  const [previewItem, setPreviewItem] = useState<CatalogItem | null>(null);
 
   const [rewardAnimVisible, setRewardAnimVisible] = useState(false);
   const [purchasedItemName, setPurchasedItemName] = useState("");
@@ -37,32 +40,134 @@ export default function StoreScreen() {
     }
   }, [coins, purchaseItem, rewardScaleAnim]);
 
-  const renderItem = useCallback(({ item }: { item: CatalogItem }) => (
-    <View style={styles.itemCard}>
+  const renderItem = useCallback(({ item }: { item: CatalogItem }) => {
+    const isSkin = item.item_type === 'skin';
+    const isOwned = isSkin && purchasedSkins.includes(item.skin_id || '');
+    
+    return (
+    <TouchableOpacity 
+      style={styles.itemCard}
+      onPress={() => isSkin ? setPreviewItem(item) : null}
+      activeOpacity={isSkin ? 0.7 : 1}
+    >
       <View style={styles.itemHeader}>
-        <Ionicons name={item.icon_name as any || "cube"} size={32} color={AuthColors.navy} />
+        {getItemImage(item.name) ? (
+          <Image source={getItemImage(item.name)} style={{ width: 32, height: 32 }} resizeMode="contain" />
+        ) : (
+          <Ionicons name={item.icon_name as any || "cube"} size={32} color={AuthColors.navy} />
+        )}
         <View style={styles.itemTitleContainer}>
           <Text style={styles.itemName}>{item.name}</Text>
           <Text style={styles.itemPrice}>{item.price} Coins</Text>
         </View>
+        {isSkin && (
+          <View style={styles.previewBadge}>
+            <Text style={styles.previewText}>PREVIEW</Text>
+          </View>
+        )}
       </View>
       <Text style={styles.itemDesc}>{item.description}</Text>
       <TouchableOpacity 
         style={[
           styles.buyButton, 
-          (coins < item.price || purchasingId === item.id) && styles.buyButtonDisabled
+          (isOwned || coins < item.price || purchasingId === item.id) && styles.buyButtonDisabled,
+          isOwned && styles.buyButtonOwned
         ]} 
         onPress={() => handlePurchase(item)}
-        disabled={coins < item.price || purchasingId === item.id}
+        disabled={isOwned || coins < item.price || purchasingId === item.id}
       >
         {purchasingId === item.id ? (
           <ActivityIndicator size="small" color="#FFFFFF" />
         ) : (
-          <Text style={styles.buyText}>BUY</Text>
+          <Text style={styles.buyText}>{isOwned ? 'OWNED' : 'BUY'}</Text>
         )}
       </TouchableOpacity>
-    </View>
-  ), [coins, purchasingId, handlePurchase]);
+    </TouchableOpacity>
+  )}, [coins, purchasingId, handlePurchase, purchasedSkins]);
+
+  const renderPreviewModal = () => {
+    if (!previewItem) return null;
+    const isOwned = purchasedSkins.includes(previewItem.skin_id || '');
+
+    const getPreviewImages = (skinId: string) => {
+        if (skinId === 'omni_man') {
+            return {
+                profile: require('@/assets/images/Omni-Man_profile.png'),
+                idle: require('@/assets/images/Omni-Man_combat_idle.png'),
+                victory: require('@/assets/images/Omni-Man_victory.png'),
+                defeat: require('@/assets/images/Omni-Man_defeated.png')
+            };
+        }
+        if (skinId === 'atom_eve') {
+            return {
+                profile: require('@/assets/images/Atom-Eve_profile.png'),
+                idle: require('@/assets/images/Atom-Eve_combat_idle.png'),
+                victory: require('@/assets/images/Atom-Eve_victory.png'),
+                defeat: require('@/assets/images/Atom-Eve_defeated.png')
+            };
+        }
+        // Default m_series
+        return {
+            profile: require('@/assets/images/m_avatar.png'),
+            idle: require('@/assets/images/m_battle.png'),
+            victory: require('@/assets/images/m_victory.png'),
+            defeat: require('@/assets/images/m_defeated.png')
+        };
+    };
+    
+    const pImages = getPreviewImages(previewItem.skin_id || '');
+
+    return (
+      <Modal visible={!!previewItem} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{previewItem.name} Preview</Text>
+              <TouchableOpacity onPress={() => setPreviewItem(null)}>
+                <Ionicons name="close-circle" size={32} color={AuthColors.navy} />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView contentContainerStyle={styles.previewScroll}>
+              <View style={styles.previewRow}>
+                <View style={styles.previewBox}>
+                  <Text style={styles.previewLabel}>Profile / Avatar</Text>
+                  <Image source={pImages.profile} style={styles.previewImg} resizeMode="contain" />
+                </View>
+                <View style={styles.previewBox}>
+                  <Text style={styles.previewLabel}>Combat Idle</Text>
+                  <Image source={pImages.idle} style={styles.previewImg} resizeMode="contain" />
+                </View>
+              </View>
+              <View style={styles.previewRow}>
+                <View style={styles.previewBox}>
+                  <Text style={styles.previewLabel}>Victory</Text>
+                  <Image source={pImages.victory} style={styles.previewImg} resizeMode="contain" />
+                </View>
+                <View style={styles.previewBox}>
+                  <Text style={styles.previewLabel}>Defeated</Text>
+                  <Image source={pImages.defeat} style={styles.previewImg} resizeMode="contain" />
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity 
+                style={[styles.buyButton, { height: 48, justifyContent: 'center' }, (isOwned || coins < previewItem.price) && styles.buyButtonDisabled]} 
+                onPress={() => {
+                  handlePurchase(previewItem);
+                  setPreviewItem(null);
+                }}
+                disabled={isOwned || coins < previewItem.price}
+              >
+                <Text style={[styles.buyText, { fontSize: 16 }]}>{isOwned ? 'OWNED' : `BUY - ${previewItem.price} COINS`}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -81,6 +186,8 @@ export default function StoreScreen() {
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
       />
+
+      {renderPreviewModal()}
 
       {/* ── Purchase Success Animation Overlay ── */}
       {rewardAnimVisible && (
@@ -165,7 +272,85 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buyButtonDisabled: { opacity: 0.5 },
+  buyButtonOwned: { backgroundColor: '#475569' },
   buyText: { fontFamily: Fonts.pixel, fontSize: 14, color: '#FFFFFF' },
+
+  previewBadge: {
+    backgroundColor: '#8B5CF6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  previewText: {
+    fontFamily: Fonts.pixel,
+    fontSize: 10,
+    color: '#fff',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',   
+  },
+  modalContent: {
+    flex: 0.8,
+    backgroundColor: AuthColors.bg,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    borderWidth: 4,
+    borderColor: AuthColors.navy,
+    borderBottomWidth: 0,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 3,
+    borderColor: AuthColors.navy,
+  },
+  modalTitle: {
+    fontFamily: Fonts.pixel,
+    fontSize: 20,
+    color: AuthColors.navy,
+  },
+  previewScroll: {
+    padding: 20,
+    gap: 20,
+  },
+  previewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  previewBox: {
+    flex: 1,
+    borderWidth: 3,
+    borderColor: AuthColors.navy,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    alignItems: 'center',
+    padding: 10,
+    aspectRatio: 1,
+  },
+  previewImg: {
+    flex: 1,
+    width: '100%',
+  },
+  previewLabel: {
+    fontFamily: Fonts.vt323,
+    fontSize: 18,
+    color: AuthColors.navy,
+    marginBottom: 8,
+  },
+  modalFooter: {
+    padding: 20,
+    paddingBottom: 40,
+    borderTopWidth: 3,
+    borderColor: AuthColors.navy,
+    backgroundColor: '#fff',
+  },
 
   // Reward Anim
   rewardAnimOverlay: {

@@ -5,11 +5,21 @@ import { useGameStore } from '@/store/gameStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 // ── NEW: Added the dynamic image helper here too! ──
-const getMilestoneImage = (level: number) => {
+const getMilestoneImage = (level: number, equippedSkin?: string | null) => {
+  if (equippedSkin === 'm_series') return require('@/assets/images/m_avatar.png'); // swapped to use the portrait variant
+  if (equippedSkin === 'omni_man') return require('@/assets/images/Omni-Man_profile.png');
+  if (equippedSkin === 'atom_eve') return require('@/assets/images/Atom-Eve_profile.png');
   if (level >= 50) return require('@/assets/images/legend_avatar.png');
   if (level >= 25) return require('@/assets/images/champion_avatar.png');
   if (level >= 10) return require('@/assets/images/challenger_avatar.png');
   return require('@/assets/images/rookie_avatar.png');
+};
+
+const getRankName = (level: number) => {
+  if (level >= 50) return 'LEGEND';
+  if (level >= 25) return 'CHAMPION';
+  if (level >= 10) return 'CHALLENGER';
+  return 'ROOKIE';
 };
 
 export function ProfileLicense() {
@@ -52,7 +62,7 @@ export function ProfileLicense() {
                 <View style={styles.portraitBox}>
                     {/* ── UPDATED: Uses your dynamic image and resizeMode="contain" ── */}
                     <Image
-                        source={getMilestoneImage(avatar.level)}
+                        source={getMilestoneImage(avatar.level, avatar.equippedSkin)}
                         style={styles.portraitImage}
                         resizeMode="contain"
                     />
@@ -71,7 +81,7 @@ export function ProfileLicense() {
                         <View>
                             <Text style={styles.infoLabel}>RANK</Text>
                             <View style={styles.rankBadge}>
-                                <Text style={styles.rankText}>RANK E</Text>
+                                <Text style={styles.rankText}>{getRankName(avatar.level)}</Text>
                             </View>
                         </View>
                         <MaterialCommunityIcons name="shield-check" size={24} color={AuthColors.gold} />
@@ -215,5 +225,5 @@ const styles = StyleSheet.create({
   recordsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   recordCard: { width: '48%', backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: AuthColors.navy, padding: 12, shadowColor: AuthColors.navy, shadowOffset: { width: 3, height: 3 }, shadowOpacity: 1, shadowRadius: 0, elevation: 3 },
   recordLabel: { fontFamily: Fonts.pixel, fontSize: 8, color: '#3D494C', marginTop: 8, lineHeight: 12 },
-  recordVal: { fontFamily: Fonts.vt323, fontSize: 28, color: AuthColors.crimson, marginTop: 4 },
+  recordVal: { fontFamily: Fonts.vt323, fontSize: 24, color: AuthColors.crimson, marginTop: 4 }
 });

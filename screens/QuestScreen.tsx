@@ -56,7 +56,7 @@ export default function QuestScreen({ onBack }: QuestScreenProps) {
 
         <View style={styles.list}>
           {ENEMIES.map((enemy, index) => {
-            const isLocked = avatarLevel < enemy.difficulty;
+            const isLocked = avatarLevel < enemy.unlockLevel;
 
             // Only attach an image if we have one AND the card is not locked.
             // Passing null/undefined to <Image source={...}> causes the warning.
@@ -64,7 +64,7 @@ export default function QuestScreen({ onBack }: QuestScreenProps) {
 
             const enemyWithImage = {
               ...enemy,
-              level: enemy.difficulty,
+              level: enemy.unlockLevel,
               image,
               // Utilizing the color defined in your ENEMIES constant for better visual variety
               color: enemy.color || (index === 0 ? '#C6E8F8' : index === 1 ? '#8CF5E4' : '#E2E8F0'),

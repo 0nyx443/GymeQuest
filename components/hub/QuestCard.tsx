@@ -86,7 +86,7 @@ export function QuestCard({ enemy, isLocked, onPress }: QuestCardProps) {
                     <View style={styles.bountyBox}>
                         <Text style={styles.boxLabel}>OBJECTIVE</Text>
                         <Text style={styles.objectiveText}>
-                            {enemy.repsRequired} {exerciseLabel.toUpperCase()}S
+                            {enemy.hp} DAMAGE
                         </Text>
                     </View>
                     

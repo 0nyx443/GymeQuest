@@ -9,6 +9,10 @@ import { useGameStore } from '@/store/gameStore';
 
 import { InventoryRow, CatalogItem, getItemImage } from '@/utils/inventory';
 
+type SectionRowData =
+  | { kind: 'consumable_pair'; pair: InventoryRow[] }
+  | { kind: 'skin'; item: InventoryRow };
+
 export default function InventoryScreen() {
   const inventory = useGameStore((s) => s.inventory);
   const catalog = useGameStore((s) => s.catalog);
@@ -52,10 +56,6 @@ export default function InventoryScreen() {
   for (let i = 0; i < consumableList.length; i += 2) {
     consumablePairs.push(consumableList.slice(i, i + 2));
   }
-
-  type SectionRowData =
-    | { kind: 'consumable_pair'; pair: InventoryRow[] }
-    | { kind: 'skin'; item: InventoryRow };
 
   const sections: { title: string; data: SectionRowData[] }[] = [];
   if (consumableList.length > 0) {

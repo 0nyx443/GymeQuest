@@ -244,7 +244,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       newTodayReps = { date: todayStr, push_up: 0, squat: 0, sit_up: 0, pull_up: 0 };
     }
     
-    newTodayReps[enemy.exercise] = (newTodayReps[enemy.exercise] ?? 0) + reps;
+    newTodayReps[enemy.exercise] += reps;
 
     return {
       avatar: {

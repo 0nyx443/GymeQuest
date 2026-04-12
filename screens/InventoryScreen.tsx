@@ -1,8 +1,8 @@
 /**
  * InventoryScreen.tsx — placeholder for player's item inventory.
  */
-import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, StatusBar, FlatList, TouchableOpacity, Alert, ActivityIndicator, Modal, ScrollView, Image } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, StatusBar, SectionList, TouchableOpacity, Alert, ActivityIndicator, Modal, ScrollView, Image } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { useGameStore } from '@/store/gameStore';
@@ -46,8 +46,30 @@ export default function InventoryScreen() {
   const skinList = catalog
         .filter(c => c.item_type === 'skin' && c.skin_id && purchasedSkins.includes(c.skin_id))
         .map(c => ({ item_id: c.id, quantity: 1 }));
-  
-  const combinedList = [...consumableList, ...skinList];
+
+  // Group consumables into pairs for 2-column grid rows
+  const consumablePairs: InventoryRow[][] = [];
+  for (let i = 0; i < consumableList.length; i += 2) {
+    consumablePairs.push(consumableList.slice(i, i + 2));
+  }
+
+  type SectionRowData =
+    | { kind: 'consumable_pair'; pair: InventoryRow[] }
+    | { kind: 'skin'; item: InventoryRow };
+
+  const sections: { title: string; data: SectionRowData[] }[] = [];
+  if (consumableList.length > 0) {
+    sections.push({
+      title: 'ITEMS',
+      data: consumablePairs.map((pair) => ({ kind: 'consumable_pair' as const, pair })),
+    });
+  }
+  if (skinList.length > 0) {
+    sections.push({
+      title: 'SKINS',
+      data: skinList.map((item) => ({ kind: 'skin' as const, item })),
+    });
+  }
   const getPreviewImages = (skinId: string) => {
       if (skinId === 'omni_man') {
           return {
@@ -260,7 +282,7 @@ export default function InventoryScreen() {
           }
         })()}
 
-      {combinedList.length === 0 ? (
+      {sections.length === 0 ? (
         <View style={styles.emptyWrap}>
           <MaterialCommunityIcons name="bag-personal-outline" size={64} color="#CBD5E1" />
           <Text style={styles.emptyTitle}>INVENTORY EMPTY</Text>
@@ -269,18 +291,32 @@ export default function InventoryScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.listContent}>
-          {consumableList.length > 0 && (
-            <View style={styles.gridContainer}>
-              {consumableList.map((item, index) => renderConsumable(item, index))}
-            </View>
+        <SectionList
+          sections={sections}
+          keyExtractor={(item, index) =>
+            item.kind === 'consumable_pair'
+              ? `pair_${index}`
+              : `skin_${item.item.item_id}`
+          }
+          contentContainerStyle={styles.listContent}
+          stickySectionHeadersEnabled={false}
+          renderSectionHeader={({ section }) => (
+            <Text style={styles.sectionLabel}>{section.title}</Text>
           )}
-          {skinList.length > 0 && (
-            <View style={styles.listContainer}>
-              {skinList.map((item, index) => renderSkin(item, index))}
-            </View>
-          )}
-        </ScrollView>
+          renderItem={({ item, index }) => {
+            if (item.kind === 'consumable_pair') {
+              return (
+                <View style={styles.gridRow}>
+                  {item.pair.map((row, i) => renderConsumable(row, i))}
+                  {item.pair.length === 1 && (
+                    <View style={[styles.gridItemCard, styles.gridItemSpacer]} />
+                  )}
+                </View>
+              );
+            }
+            return renderSkin(item.item, index);
+          }}
+        />
       )}
     </View>
   );
@@ -351,15 +387,19 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
-  gridContainer: {
+  sectionLabel: {
+    fontFamily: Fonts.pixel,
+    fontSize: 10,
+    color: '#8D99AE',
+    letterSpacing: 3,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  gridRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'space-between',
     gap: 12,
-  },
-  listContainer: {
-    gap: 12,
-    marginTop: 12,
+    marginBottom: 12,
   },
   gridItemCard: {
     width: '48%',
@@ -374,6 +414,11 @@ const styles = StyleSheet.create({
     elevation: 3,
     alignItems: 'center',
     marginBottom: 8,
+  },
+  gridItemSpacer: {
+    opacity: 0,
+    elevation: 0,
+    shadowOpacity: 0,
   },
   gridIconBox: {
     width: 50,

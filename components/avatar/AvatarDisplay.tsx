@@ -6,6 +6,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Image } from 'react-native';
 import { Colors } from '@/constants/theme';
+import { useGameStore } from '@/store/gameStore';
 
 interface AvatarDisplayProps {
   level: number;
@@ -14,7 +15,11 @@ interface AvatarDisplayProps {
 }
 
 // ── We grab the correct image based on the level, matching the milestones!
-function getMilestoneImage(level: number) {
+function getMilestoneImage(level: number, equippedSkin?: string | null) {
+  if (equippedSkin === 'm_series') return require('@/assets/images/m_avatar.png');
+  if (equippedSkin === 'omni_man') return require('@/assets/images/Omni-Man_profile.png');
+  if (equippedSkin === 'atom_eve') return require('@/assets/images/Atom-Eve_profile.png');
+
   if (level >= 50) return require('@/assets/images/legend.png');
   if (level >= 25) return require('@/assets/images/champion.png');
   if (level >= 10) return require('@/assets/images/challenger.png');
@@ -32,9 +37,10 @@ function getAuraColor(level: number): string {
 export function AvatarDisplay({ level, size = 120, animated = true }: AvatarDisplayProps) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const auraColor = getAuraColor(level);
+  const equippedSkin = useGameStore(state => state.avatar.equippedSkin);
   
   // Get the correct PNG file
-  const avatarImage = getMilestoneImage(level);
+  const avatarImage = getMilestoneImage(level, equippedSkin);
 
   useEffect(() => {
     if (!animated) return;

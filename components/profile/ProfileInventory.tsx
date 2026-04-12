@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/utils/supabase';
+import { getItemImage } from '@/utils/inventory';
 
 interface InventoryItem {
   id: string;
@@ -65,11 +66,19 @@ export function ProfileInventory() {
           {inventory.map((item) => (
             <View key={item.id} style={styles.itemBox}>
               <View style={styles.iconContainer}>
-                <Ionicons 
-                    name={(item.store_items?.icon_name as any) || "cube"} 
-                    size={32} 
-                    color={AuthColors.navy} 
-                />
+                {getItemImage(item.store_items?.name) ? (
+                  <Image
+                    source={getItemImage(item.store_items?.name)}
+                    style={{ width: 32, height: 32 }}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <Ionicons 
+                      name={(item.store_items?.icon_name as any) || "cube"} 
+                      size={32} 
+                      color={AuthColors.navy} 
+                  />
+                )}
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{item.quantity}</Text>
                 </View>

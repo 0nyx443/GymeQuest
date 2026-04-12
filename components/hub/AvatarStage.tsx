@@ -8,8 +8,9 @@ import { useGameStore } from '@/store/gameStore';
 export function AvatarStage() {
     const translateY = useSharedValue(0);
     
-    // 1. Fetch the player's current level from the store
+    // 1. Fetch the player's current level and skin from the store
     const avatarLevel = useGameStore((state) => state.avatar.level);
+    const equippedSkin = useGameStore((state) => state.avatar.equippedSkin);
 
     useEffect(() => {
         // A bouncy pixel-like step animation
@@ -31,6 +32,10 @@ export function AvatarStage() {
 
     // 2. Helper function to determine the correct image based on level
     const getAvatarImage = (level: number) => {
+        if (equippedSkin === 'm_series') return require('@/assets/images/m_battle.png');
+        if (equippedSkin === 'omni_man') return require('@/assets/images/Omni-Man_combat_idle.png');
+        if (equippedSkin === 'atom_eve') return require('@/assets/images/Atom-Eve_combat_idle.png');
+
         // IMPORTANT: Change these filenames to match exactly what is in your screenshot!
         if (level >= 50) return require('@/assets/images/legend.png');
         if (level >= 25) return require('@/assets/images/champion.png');

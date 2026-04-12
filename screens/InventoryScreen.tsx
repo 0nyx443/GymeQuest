@@ -2,19 +2,24 @@
  * InventoryScreen.tsx — placeholder for player's item inventory.
  */
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, StatusBar, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, FlatList, TouchableOpacity, Alert, ActivityIndicator, Modal, ScrollView, Image } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { useGameStore } from '@/store/gameStore';
 
-import { InventoryRow, CatalogItem } from '@/utils/inventory';
+import { InventoryRow, CatalogItem, getItemImage } from '@/utils/inventory';
 
 export default function InventoryScreen() {
   const inventory = useGameStore((s) => s.inventory);
   const catalog = useGameStore((s) => s.catalog);
   const useItemFromInventory = useGameStore((s) => s.useItemFromInventory);
   
+  const purchasedSkins = useGameStore((s) => s.avatar.purchasedSkins);
+  const equippedSkin = useGameStore((s) => s.avatar.equippedSkin);
+  const equipSkin = useGameStore((s) => s.equipSkin);
+
   const [usingId, setUsingId] = useState<string | null>(null);
+  const [previewItem, setPreviewItem] = useState<CatalogItem | null>(null);
 
   const handleUseItem = async (item: CatalogItem) => {
     if (usingId) return;
@@ -28,26 +33,69 @@ export default function InventoryScreen() {
     }
   };
 
+  const handleToggleSkin = (skinId: string) => {
+    if (equippedSkin === skinId) {
+      equipSkin(null);
+    } else {
+      equipSkin(skinId);
+    }
+  };
+
+  // Combine consumable inventory with purchased skins for display
+  const combinedList = [
+    ...inventory.filter(r => r.quantity > 0),
+    ...catalog
+        .filter(c => c.item_type === 'skin' && c.skin_id && purchasedSkins.includes(c.skin_id))
+        .map(c => ({ item_id: c.id, quantity: 1 }))
+  ];
+
   const renderItem = useCallback(({ item }: { item: InventoryRow }) => {
     const catalogItem = catalog.find((c) => c.id === item.item_id);
     if (!catalogItem) return null;
 
+    const isSkin = catalogItem.item_type === 'skin';
     // Show "USE" button mainly for items like streak savers
     const canUseFromInventory = catalogItem.item_type === 'streak_restore';
 
     return (
       <View style={styles.itemCard}>
-        <View style={styles.iconBox}>
-          <Ionicons name={catalogItem.icon_name as any} size={36} color={AuthColors.navy} />
-        </View>
-        <View style={styles.itemInfo}>
-          <Text style={styles.itemName}>{catalogItem.name}</Text>
-          <Text style={styles.itemDesc}>{catalogItem.description}</Text>
-        </View>
-        <View style={styles.rightActionBox}>
-          <View style={styles.qtyBadge}>
-            <Text style={styles.qtyText}>x{item.quantity}</Text>
+        <View style={styles.itemHeader}>
+          <View style={styles.iconBox}>
+            {getItemImage(catalogItem.name) ? (
+              <Image source={getItemImage(catalogItem.name)} style={{ width: 36, height: 36 }} resizeMode="contain" />
+            ) : (
+              <Ionicons name={catalogItem.icon_name as any || "cube"} size={36} color={AuthColors.navy} />
+            )}
           </View>
+          <View style={styles.itemInfo}>
+            <Text style={styles.itemName}>{catalogItem.name}</Text>
+          </View>
+        </View>
+        <Text style={styles.itemDesc}>{catalogItem.description}</Text>
+        <View style={styles.rightActionBox}>
+          {!isSkin && (
+              <View style={styles.qtyBadge}>
+                <Text style={styles.qtyText}>x{item.quantity}</Text>
+              </View>
+          )}
+          {isSkin && (
+            <View style={styles.skinActionBox}>
+              <TouchableOpacity 
+                style={styles.previewBtn}
+                onPress={() => setPreviewItem(catalogItem)}
+              >
+                <Text style={styles.previewBtnText}>PREVIEW</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.useBtn, equippedSkin === catalogItem.skin_id && styles.equipBtnActive]}
+                onPress={() => handleToggleSkin(catalogItem.skin_id!)}
+              >
+                <Text style={styles.useBtnText}>
+                  {equippedSkin === catalogItem.skin_id ? 'UNEQUIP' : 'EQUIP'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
           {canUseFromInventory && (
             <TouchableOpacity 
               style={[styles.useBtn, usingId === catalogItem.id && styles.useBtnDisabled]}
@@ -64,7 +112,7 @@ export default function InventoryScreen() {
         </View>
       </View>
     );
-  }, [catalog, handleUseItem, usingId]);
+  }, [catalog, equippedSkin, handleUseItem, usingId]);
 
   return (
     <View style={styles.screen}>
@@ -75,7 +123,74 @@ export default function InventoryScreen() {
         <Text style={styles.headerSub}>YOUR ITEMS & GEAR</Text>
       </View>
 
-      {inventory.length === 0 ? (
+{previewItem && (() => {
+          const getPreviewImages = (skinId: string) => {
+            if (skinId === 'omni_man') {
+                return {
+                    profile: require('@/assets/images/Omni-Man_profile.png'),
+                    idle: require('@/assets/images/Omni-Man_combat_idle.png'),
+                    victory: require('@/assets/images/Omni-Man_victory.png'),
+                    defeat: require('@/assets/images/Omni-Man_defeated.png')
+                };
+            }
+            if (skinId === 'atom_eve') {
+                return {
+                    profile: require('@/assets/images/Atom-Eve_profile.png'),
+                    idle: require('@/assets/images/Atom-Eve_combat_idle.png'),
+                    victory: require('@/assets/images/Atom-Eve_victory.png'),
+                    defeat: require('@/assets/images/Atom-Eve_defeated.png')
+                };
+            }
+            // Default m_series
+            return {
+                profile: require('@/assets/images/m_avatar.png'),
+                idle: require('@/assets/images/m_battle.png'),
+                victory: require('@/assets/images/m_victory.png'),
+                defeat: require('@/assets/images/m_defeated.png')
+            };
+          };
+          const pImages = getPreviewImages(previewItem.skin_id || '');
+          
+          return (
+            <Modal visible={true} animationType="slide" transparent>
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>{previewItem.name}</Text>
+                    <TouchableOpacity onPress={() => setPreviewItem(null)}>
+                      <Ionicons name="close-circle" size={32} color={AuthColors.navy} />
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <ScrollView contentContainerStyle={styles.previewScroll}>
+                    <View style={styles.previewRow}>
+                      <View style={styles.previewBox}>
+                        <Text style={styles.previewLabel}>Profile / Avatar</Text>
+                        <Image source={pImages.profile} style={styles.previewImg} resizeMode="contain" />
+                      </View>
+                      <View style={styles.previewBox}>
+                        <Text style={styles.previewLabel}>Combat Idle</Text>
+                        <Image source={pImages.idle} style={styles.previewImg} resizeMode="contain" />
+                      </View>
+                    </View>
+                    <View style={styles.previewRow}>
+                      <View style={styles.previewBox}>
+                        <Text style={styles.previewLabel}>Victory</Text>
+                        <Image source={pImages.victory} style={styles.previewImg} resizeMode="contain" />
+                      </View>
+                      <View style={styles.previewBox}>
+                        <Text style={styles.previewLabel}>Defeated</Text>
+                        <Image source={pImages.defeat} style={styles.previewImg} resizeMode="contain" />
+                      </View>
+                    </View>
+                  </ScrollView>
+                </View>
+              </View>
+            </Modal>
+          );
+        })()}
+
+      {combinedList.length === 0 ? (
         <View style={styles.emptyWrap}>
           <MaterialCommunityIcons name="bag-personal-outline" size={64} color="#CBD5E1" />
           <Text style={styles.emptyTitle}>INVENTORY EMPTY</Text>
@@ -85,9 +200,9 @@ export default function InventoryScreen() {
         </View>
       ) : (
         <FlatList
-          data={inventory}
+          data={combinedList}
           renderItem={renderItem}
-          keyExtractor={(item) => item.item_id}
+          keyExtractor={(item, index) => item.item_id + index}
           contentContainerStyle={styles.listContent}
         />
       )}
@@ -165,13 +280,16 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: AuthColors.navy,
     padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
     shadowColor: AuthColors.navy,
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 1,
     shadowRadius: 0,
     elevation: 4,
+  },
+  itemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   iconBox: {
     width: 60,
@@ -186,21 +304,41 @@ const styles = StyleSheet.create({
   itemInfo: {
     flex: 1,
   },
+  itemTitleContainer: {
+    flex: 1,
+  },
   itemName: {
     fontFamily: Fonts.pixel,
-    fontSize: 14,
+    fontSize: 16,
     color: AuthColors.navy,
-    marginBottom: 4,
   },
   itemDesc: {
     fontFamily: Fonts.vt323,
-    fontSize: 14,
+    fontSize: 16,
     color: AuthColors.labelMuted,
-    lineHeight: 16,
+    lineHeight: 18,
+    marginBottom: 12,
   },
   rightActionBox: {
     alignItems: 'flex-end',
-    gap: 8,
+  },
+  actionRow: {
+    alignItems: 'flex-end',
+    marginTop: 8,
+  },
+  qtyBadgeSmall: {
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 2,
+    borderColor: AuthColors.navy,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  qtyTextSmall: {
+    fontFamily: Fonts.pixel,
+    fontSize: 12,
+    color: '#FFFFFF',
   },
   qtyBadge: {
     backgroundColor: '#1E293B',
@@ -224,10 +362,87 @@ const styles = StyleSheet.create({
   useBtnDisabled: {
     opacity: 0.5,
   },
+  equipBtnActive: {
+    backgroundColor: '#1E293B',
+  },
   useBtnText: {
     fontFamily: Fonts.pixel,
     fontSize: 10,
     color: '#FFFFFF',
     letterSpacing: 1,
+  },
+  skinActionBox: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  previewBtn: {
+    backgroundColor: '#8B5CF6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 2,
+    borderColor: AuthColors.navy,
+  },
+  previewBtnText: {
+    fontFamily: Fonts.pixel,
+    fontSize: 10,
+    color: '#FFFFFF',
+    letterSpacing: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',   
+  },
+  modalContent: {
+    flex: 0.8,
+    backgroundColor: AuthColors.bg,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    borderWidth: 4,
+    borderColor: AuthColors.navy,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 3,
+    borderColor: AuthColors.navy,
+  },
+  modalTitle: {
+    fontFamily: Fonts.pixel,
+    fontSize: 20,
+    color: AuthColors.navy,
+  },
+  previewScroll: {
+    padding: 20,
+    gap: 20,
+  },
+  previewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  previewBox: {
+    flex: 1,
+    borderWidth: 3,
+    borderColor: AuthColors.navy,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    alignItems: 'center',
+    padding: 10,
+    aspectRatio: 1,
+  },
+  previewImg: {
+    flex: 1,
+    width: '100%',
+  },
+  previewLabel: {
+    fontFamily: Fonts.vt323,
+    fontSize: 18,
+    color: AuthColors.navy,
+    marginBottom: 8,
   },
 });

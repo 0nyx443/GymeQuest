@@ -5,9 +5,18 @@ export interface CatalogItem {
   name: string;
   description: string;
   price: number;
-  item_type: 'potion' | 'streak_restore' | 'exp_boost';
+  item_type: 'potion' | 'streak_restore' | 'exp_boost' | 'skin';
   effect_value: number;
   icon_name: string;
+  skin_id?: string; // e.g. 'm_series'
+}
+
+export function getItemImage(name: string): any {
+  if (name === 'Double EXP Scroll') return require('@/assets/images/double_exp.png');
+  if (name === 'Large Potion of Weakness') return require('@/assets/images/large_potion.png');
+  if (name === 'Small Potion of Weakness') return require('@/assets/images/small_potion.png');
+  if (name === 'Streak Saver') return require('@/assets/images/streak_saver.png');
+  return null;
 }
 
 export interface InventoryRow {
@@ -22,10 +31,46 @@ export async function fetchStoreCatalog(): Promise<CatalogItem[]> {
     console.error('[inventory] Error fetching store_items:', error.message);
     return [];
   }
-  // Filter out any accidentally created test items and sort by price
-  return (data as CatalogItem[])
+  
+  let DBItems = (data as CatalogItem[])
     .filter(item => item.name !== 'Item Name')
     .sort((a, b) => a.price - b.price);
+
+  // Inject hardcoded cosmetics locally since we can't alter RLS database from the app without migrations
+  const mSeriesSkin: CatalogItem = {
+    id: 'skin-001',
+    name: 'Invincible',
+    description: 'A stylish cosmetic skin pack featuring new battle and victory poses!',
+    price: 15000,
+    item_type: 'skin',
+    effect_value: 0,
+    icon_name: 'shirt-outline',
+    skin_id: 'm_series'
+  };
+
+  const omniManSkin: CatalogItem = {
+    id: 'skin-002',
+    name: 'Omni-Man',
+    description: 'A powerful cosmetic skin pack featuring Omni-Man poses!',
+    price: 20000,
+    item_type: 'skin',
+    effect_value: 0,
+    icon_name: 'shirt-outline',
+    skin_id: 'omni_man'
+  };
+
+  const atomEveSkin: CatalogItem = {
+    id: 'skin-003',
+    name: 'Atom-Eve',
+    description: 'A glowing cosmetic skin pack featuring Atom-Eve poses!',
+    price: 15000,
+    item_type: 'skin',
+    effect_value: 0,
+    icon_name: 'shirt-outline',
+    skin_id: 'atom_eve'
+  };
+
+  return [...DBItems, mSeriesSkin, omniManSkin, atomEveSkin];
 }
 
 /** Fetch current inventory from user_inventory */
@@ -61,6 +106,11 @@ export async function purchaseItem(
     .eq('id', userId);
   if (profileErr) {
     return { success: false, newCoins: currentCoins, error: profileErr.message };
+  }
+
+  // Add bypass for Local-only skins (M-Series Pack)
+  if (item.item_type === 'skin') {
+    return { success: true, newCoins };
   }
 
   // 2. Fetch current quantity to increment

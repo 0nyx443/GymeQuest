@@ -19,8 +19,9 @@ export default function PostBattleScreen() {
   const battle = useGameStore((s) => s.battle);
   const resetBattle = useGameStore((s) => s.resetBattle);
   
-  // Get the player's current level
+  // Get the player's current level and skin
   const avatarLevel = useGameStore((s) => s.avatar.level);
+  const equippedSkin = useGameStore((s) => s.avatar.equippedSkin);
 
   // ── 2. GET AUDIO PREFERENCES ──
   const audioPrefs = useAudioStore();
@@ -60,6 +61,9 @@ export default function PostBattleScreen() {
 
   // Helper for Defeated Images
   const getDefeatedImage = (level: number) => {
+    if (equippedSkin === 'm_series') return require('@/assets/images/m_defeated.png');
+    if (equippedSkin === 'omni_man') return require('@/assets/images/Omni-Man_defeated.png');
+    if (equippedSkin === 'atom_eve') return require('@/assets/images/Atom-Eve_defeated.png');
     if (level >= 50) return require('@/assets/images/legend_defeated.png');
     if (level >= 25) return require('@/assets/images/champion_defeated.png');
     if (level >= 10) return require('@/assets/images/challenger_defeated.png');
@@ -68,6 +72,9 @@ export default function PostBattleScreen() {
 
  // Helper for Victory Images 
   const getVictoryImage = (level: number) => {
+    if (equippedSkin === 'm_series') return require('@/assets/images/m_victory.png');
+    if (equippedSkin === 'omni_man') return require('@/assets/images/Omni-Man_victory.png');
+    if (equippedSkin === 'atom_eve') return require('@/assets/images/Atom-Eve_victory.png');
     if (level >= 50) return require('@/assets/images/legend_victory.png');
     if (level >= 25) return require('@/assets/images/champion_victory.png');
     if (level >= 10) return require('@/assets/images/challenger_victory.png');

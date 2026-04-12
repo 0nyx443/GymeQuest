@@ -22,8 +22,11 @@ export interface AvatarState {
   currentStreak: number;   // NEW: Current daily workout streak
   lastActiveDate: string | null; // NEW: The ISO string date of last workout
   lastEnduranceDate: string | null; // NEW: The ISO string date of last endurance boss battle
+  claimedLevelRewards: number[]; // NEW: Levels for which rewards have been claimed
   stats: PlayerStats;
   defeatedEnemies: string[];
+  purchasedSkins: string[];
+  equippedSkin: string | null;
   totalReps: number;
   totalBattles: number;
   victories: number;
@@ -58,6 +61,7 @@ interface GameStore {
   dailyRewardCoins: number;
 
   claimDailyReward: () => Promise<void>;
+  claimLevelReward: (level: number) => Promise<void>;
 
   // Avatar actions
   gainXp: (amount: number) => void;
@@ -67,6 +71,7 @@ interface GameStore {
   // Item actions
   loadInventory: () => Promise<void>;
   purchaseItem: (item: CatalogItem) => Promise<{ success: boolean; error?: string }>;
+  equipSkin: (skinId: string | null) => void;
   queueItemEffect: (effect: CatalogItem) => void;
   clearPendingEffect: () => void;
   consumeQueuedItem: (itemId: string) => Promise<void>;
@@ -109,8 +114,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     currentStreak: 0,
     lastActiveDate: null,
     lastEnduranceDate: null,
+    claimedLevelRewards: [],
     stats: { strength: 10, agility: 10, stamina: 10 },
     defeatedEnemies: [],
+    purchasedSkins: [],
+    equippedSkin: null,
     totalReps: 0,
     totalBattles: 0,
     victories: 0,
@@ -138,6 +146,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
     
     const todayStr = new Date().toISOString().split('T')[0];
     await AsyncStorage.setItem(`lastLoginReward_${userId}`, todayStr);
+    
+    get().syncProfile().catch(() => {});
+  },
+
+  claimLevelReward: async (level: number) => {
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id || 'guest';
+    
+    // Reward scales with level: base 50 + 50 per level
+    const rewardCoins = level * 50;
+    
+    set((state) => {
+      const newClaimed = [...state.avatar.claimedLevelRewards, level];
+      return { 
+        avatar: { 
+          ...state.avatar, 
+          coins: state.avatar.coins + rewardCoins,
+          claimedLevelRewards: newClaimed
+        }
+      };
+    });
+    
+    const newState = get().avatar.claimedLevelRewards;
+    await AsyncStorage.setItem(`claimedLevelRewards_${userId}`, JSON.stringify(newState));
     
     get().syncProfile().catch(() => {});
   },
@@ -241,20 +273,38 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const result = await dbPurchaseItem(userData.user.id, item, currentCoins);
     if (result.success) {
       // Update local coins immediately so UI reflects without refetch
-      set((state) => ({
-        avatar: { ...state.avatar, coins: result.newCoins },
-        inventory: (() => {
-          const existing = state.inventory.find((r) => r.item_id === item.id);
-          if (existing) {
-            return state.inventory.map((r) =>
-              r.item_id === item.id ? { ...r, quantity: r.quantity + 1 } : r
-            );
-          }
-          return [...state.inventory, { item_id: item.id, quantity: 1 }];
-        })(),
-      }));
+      if (item.item_type === 'skin' && item.skin_id) {
+        set((state) => ({
+          avatar: { 
+            ...state.avatar, 
+            coins: result.newCoins,
+            purchasedSkins: [...state.avatar.purchasedSkins, item.skin_id as string]
+          },
+        }));
+        get().syncProfile(); // Sync to AsyncStorage securely
+      } else {
+        set((state) => ({
+          avatar: { ...state.avatar, coins: result.newCoins },
+          inventory: (() => {
+            const existing = state.inventory.find((r) => r.item_id === item.id);
+            if (existing) {
+              return state.inventory.map((r) =>
+                r.item_id === item.id ? { ...r, quantity: r.quantity + 1 } : r
+              );
+            }
+            return [...state.inventory, { item_id: item.id, quantity: 1 }];
+          })(),
+        }));
+      }
     }
     return { success: result.success, error: result.error };
+  },
+
+  equipSkin: (skinId) => {
+    set((state) => ({
+      avatar: { ...state.avatar, equippedSkin: skinId }
+    }));
+    get().syncProfile();
   },
 
   queueItemEffect: (effect) => set({ pendingItemEffect: effect }),
@@ -452,7 +502,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   resetBattle: () => set({ battle: null }),
-  resetAvatar: () => set({ avatar: { name: 'Aethor', class: 'Iron Aspirant', level: 1, xp: 0, coins: 0, currentStreak: 0, lastActiveDate: null, lastEnduranceDate: null, stats: { strength: 0, agility: 0, stamina: 0 }, defeatedEnemies: [], totalReps: 0, totalBattles: 0, victories: 0 } }),
+  resetAvatar: () => set({ avatar: { name: 'Aethor', class: 'Iron Aspirant', level: 1, xp: 0, coins: 0, currentStreak: 0, lastActiveDate: null, lastEnduranceDate: null, claimedLevelRewards: [], stats: { strength: 0, agility: 0, stamina: 0 }, defeatedEnemies: [], totalReps: 0, totalBattles: 0, victories: 0, purchasedSkins: [], equippedSkin: null } }),
   setAvatar: (avatarData) => set((state) => ({ avatar: { ...state.avatar, ...avatarData } })),
   setProfileNeedsName: (need) => set({ profileNeedsName: need }),
   setShowTutorial: (show) => set({ showTutorial: show }),
@@ -473,12 +523,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
         rewardAmount = 50;
       }
       
-      set({ 
+      const storedClaimedLevelsGuestStr = await AsyncStorage.getItem('claimedLevelRewards_guest');
+      const storedClaimedLevelsGuest = storedClaimedLevelsGuestStr ? JSON.parse(storedClaimedLevelsGuestStr) : [];
+      
+      set((state) => ({ 
+        avatar: { ...state.avatar, claimedLevelRewards: storedClaimedLevelsGuest },
         profileNeedsName: true, 
         isProfileLoaded: true,
         showDailyLoginReward: showReward,
         dailyRewardCoins: rewardAmount
-      });
+      }));
       return true;
     }
 
@@ -501,9 +555,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const storedEnduranceStr = await AsyncStorage.getItem(`lastEnduranceDate_${user.id}`);
     let loadedEnduranceDate = storedEnduranceStr ?? null;
 
+    const meta = user.user_metadata || {};
+    let loadedSkins = meta.purchasedSkins;
+    let needsSkinsMigration = false;
+    if (!loadedSkins) {
+      const storedSkinsStr = await AsyncStorage.getItem(`purchasedSkins_${user.id}`);
+      loadedSkins = storedSkinsStr ? JSON.parse(storedSkinsStr) : [];
+      if (loadedSkins.length > 0) needsSkinsMigration = true;
+    }
+
+    let loadedEquippedSkin = meta.equippedSkin !== undefined ? meta.equippedSkin : null;
+    if (loadedEquippedSkin === null || loadedEquippedSkin === undefined) {
+      loadedEquippedSkin = await AsyncStorage.getItem(`equippedSkin_${user.id}`);
+      if (loadedEquippedSkin) needsSkinsMigration = true;
+    }
+
     if (data.last_active_date !== todayStr) {
       loadedDefeatedEnemies = [];
     }
+
+    const storedClaimedLevelsStr = await AsyncStorage.getItem(`claimedLevelRewards_${user.id}`);
+    const loadedClaimedLevels = storedClaimedLevelsStr ? JSON.parse(storedClaimedLevelsStr) : [];
 
     // Daily Login Reward Check
     const lastLoginReward = await AsyncStorage.getItem(`lastLoginReward_${user.id}`);
@@ -515,12 +587,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
       rewardAmount = 50 + ((data.current_streak ?? 0) * 10);
     }
 
+    // Auto-correct level based on loaded XP
+    let loadedXp = data.exp ?? 0;
+    let actualLevel = data.level ?? 1;
+    let needsSync = false;
+    while (actualLevel < MAX_LEVEL && loadedXp >= XP_TABLE[actualLevel + 1]) {
+      actualLevel += 1;
+      needsSync = true;
+    }
+
     set((state) => ({
       avatar: {
         ...state.avatar,
         name: data.name ?? state.avatar.name,
-        level: data.level ?? 1,
-        xp: data.exp ?? 0,
+        level: actualLevel,
+        xp: loadedXp,
         stats: {
           strength: data.str ?? 0,
           agility: data.agi ?? 0,
@@ -533,7 +614,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
         currentStreak: data.current_streak ?? 0,
         lastActiveDate: data.last_active_date ?? null,
         lastEnduranceDate: loadedEnduranceDate,
+        claimedLevelRewards: loadedClaimedLevels,
         defeatedEnemies: loadedDefeatedEnemies,
+        purchasedSkins: loadedSkins,
+        equippedSkin: loadedEquippedSkin,
         birthday: data.birthday,
         sex: data.sex,
         height_cm: data.height_cm,
@@ -549,6 +633,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     
     // Mark as completely loaded after inventory fetches
     set({ isProfileLoaded: true });
+
+    if (needsSync || needsSkinsMigration) {
+      get().syncProfile().catch(() => {});
+    }
     
     return needsName;
   },
@@ -561,10 +649,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
     
     // Save daily progression state locally
     await AsyncStorage.setItem(`defeatedEnemies_${user.id}`, JSON.stringify(state.defeatedEnemies));
+    await AsyncStorage.setItem(`purchasedSkins_${user.id}`, JSON.stringify(state.purchasedSkins));
+    
+    if (state.equippedSkin) {
+      await AsyncStorage.setItem(`equippedSkin_${user.id}`, state.equippedSkin);
+    } else {
+      await AsyncStorage.removeItem(`equippedSkin_${user.id}`);
+    }
+
     if (state.lastEnduranceDate) {
       await AsyncStorage.setItem(`lastEnduranceDate_${user.id}`, state.lastEnduranceDate);
     }
     
+    // Sync to user_metadata
+    await supabase.auth.updateUser({
+      data: {
+        purchasedSkins: state.purchasedSkins,
+        equippedSkin: state.equippedSkin || null
+      }
+    });
+
     await supabase.from('profiles').upsert({
       id: user.id,
       name: state.name,

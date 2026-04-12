@@ -6,7 +6,7 @@
  * a QUESTS button (goes to the full quest list), plus the
  * player avatar, XP bar, and active daily bounty preview.
  */
-import React, { useCallback, useRef, useState, useEffect } from 'react';
+import React, { useCallback, useRef, useState, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, StatusBar, Animated, Alert, Modal, Image
@@ -99,12 +99,38 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
   };
 
   // Check if endurance battle is available
+  const isEnduranceLevelLocked = avatar.level < 10;
   const isEnduranceAvailable = !avatar.lastEnduranceDate || (new Date(avatar.lastEnduranceDate).getTime() < getThisMondaysMidnight());
-  const enduranceBadgeText = isEnduranceAvailable ? 'PLAY' : weeklyTimeLeft;
+  const enduranceBadgeText = isEnduranceLevelLocked ? 'LVL 10' : (isEnduranceAvailable ? 'PLAY' : weeklyTimeLeft);
 
   // Quick stat summary
-  // Prefix ID with 'daily_' to separate it from the Quest version
-  const dailyEnemy = ENEMIES.length > 0 ? { ...ENEMIES[0], id: `daily_${ENEMIES[0].id}`, title: 'Daily Target' } : null;
+  const dailyEnemy = useMemo(() => {
+    if (!ENEMIES.length) return null;
+    
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // Find the highest-tier enemy the player has unlocked
+    let baseEnemy = ENEMIES[0];
+    for (let i = 0; i < ENEMIES.length; i++) {
+       if (avatar.level >= ENEMIES[i].unlockLevel) {
+          baseEnemy = ENEMIES[i];
+       }
+    }
+
+    // Scale reps and parameters slightly based on their level
+    const scaledReps = Math.floor(avatar.level * 1.2) + 4; // Lvl 1 = 5
+    
+    return {
+      ...baseEnemy,
+      id: `daily_${baseEnemy.id}_${todayStr}`,
+      name: `Lvl ${avatar.level} ${baseEnemy.name}`,
+      title: 'Daily Bounty',
+      repsRequired: scaledReps,
+      hp: scaledReps * 20,
+      xpReward: Math.floor(avatar.level * 40) + 100,
+      coinReward: Math.floor(avatar.level * 10) + 40,
+    };
+  }, [avatar.level]);
 
   const handleBattlePress = useCallback(() => {
     animPress(battleScaleAnim, () => {
@@ -151,45 +177,44 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
               <Text style={styles.coinBadgeNum}>{avatar.coins}</Text>
               <Text style={styles.coinBadgeLbl}>COINS</Text>
             </View>
-
-            {/* Level Badge */}
-            <View style={styles.levelBadge}>
-              <Text style={styles.levelBadgeLbl}>LVL</Text>
-              <Text style={styles.levelBadgeNum}>{avatar.level}</Text>
-            </View>
           </View>
         </View>
 
         {/* ── Avatar ── */}
         <AvatarStage />
 
-        {/* ── XP Bar ── */}
-        <ExpBar
-          currentXp={avatar.xp}
-          nextLevelXp={nextLevelXp}
-          progress={xpProgress}
-          level={avatar.level}
-        />
-
-        {/* ── Daily Reward Card ── */}
-        <View style={styles.dailyRewardCard}>
-          <View style={styles.dailyRewardInfo}>
-            <MaterialCommunityIcons name="treasure-chest" size={24} color={AuthColors.gold} />
-            <View style={{ marginLeft: 12, flex: 1 }}>
-              <Text style={styles.dailyRewardTitle}>DAILY REWARD</Text>
-              <Text style={styles.dailyRewardSub}>
-                {showDailyReward ? `+${dailyRewardCoins} Coins available!` : `Next reward in: ${timeLeft}`}
-              </Text>
+        {/* ── Progression Box ── */}
+        <View style={styles.progressionBox}>
+          <ExpBar
+            currentXp={avatar.xp}
+            nextLevelXp={nextLevelXp}
+            progress={xpProgress}
+            level={avatar.level}
+          />
+  
+          {/* ── Daily Reward Card ── */}
+          <View style={styles.dailyRewardCard}>
+            <View style={styles.dailyRewardInfo}>
+              <MaterialCommunityIcons name="treasure-chest" size={24} color={AuthColors.gold} />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Text style={styles.dailyRewardTitle}>DAILY REWARD</Text>
+                <Text style={styles.dailyRewardSub}>
+                  {showDailyReward ? `+${dailyRewardCoins} Coins available!` : `Next reward in: ${timeLeft}`}
+                </Text>
+              </View>
             </View>
+            <TouchableOpacity 
+              style={[styles.dailyRewardBtn, !showDailyReward && styles.dailyRewardBtnDisabled]} 
+              onPress={showDailyReward ? _claimReward : undefined}
+              activeOpacity={showDailyReward ? 0.7 : 1}
+            >
+              <Text style={styles.dailyRewardBtnTxt}>{showDailyReward ? 'CLAIM' : 'CLAIMED'}</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity 
-            style={[styles.dailyRewardBtn, !showDailyReward && styles.dailyRewardBtnDisabled]} 
-            onPress={showDailyReward ? _claimReward : undefined}
-            activeOpacity={showDailyReward ? 0.7 : 1}
-          >
-            <Text style={styles.dailyRewardBtnTxt}>{showDailyReward ? 'CLAIM' : 'CLAIMED'}</Text>
-          </TouchableOpacity>
         </View>
+
+        {/* ── Combat & Activities ── */}
+        <Text style={styles.sectionTitle}>⚔️ COMBAT</Text>
 
         {/* ── CTA Buttons ── */}
         <View style={styles.ctaRow}>
@@ -222,9 +247,13 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
 
         {/* ── Boss Battles (Endurance Mode) ── */}
         <TouchableOpacity
-          style={[styles.bossBattleCard, !isEnduranceAvailable && { opacity: 0.6 }]}
+          style={[styles.bossBattleCard, (isEnduranceLevelLocked || !isEnduranceAvailable) && { opacity: 0.6 }]}
           activeOpacity={0.8}
           onPress={() => {
+            if (isEnduranceLevelLocked) {
+              Alert.alert("Locked target", "Train harder! Boss Battles unlock at Level 10.");
+              return;
+            }
             if (!isEnduranceAvailable) {
               Alert.alert("Already Played", "You can only play Boss Battles once a week. Come back next Monday!");
               return;
@@ -301,19 +330,25 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
 }
 
 const styles = StyleSheet.create({
-  dailyRewardCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  progressionBox: {
     backgroundColor: '#FFFFFF',
     borderWidth: 3,
     borderColor: AuthColors.navy,
-    padding: 12,
-    marginBottom: 16,
-    justifyContent: 'space-between',
+    padding: 16,
+    marginBottom: 24,
     shadowColor: AuthColors.navy,
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 1,
     shadowRadius: 0,
+  },
+  dailyRewardCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderWidth: 2,
+    borderColor: AuthColors.navy,
+    padding: 12,
+    justifyContent: 'space-between',
   },
   dailyRewardInfo: {
     flexDirection: 'row',
@@ -520,6 +555,8 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
     paddingVertical: 20,
     alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
     gap: 4,
   },
   ctaBattleLabel: {
@@ -546,6 +583,8 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
     paddingVertical: 20,
     alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
     gap: 4,
   },
   ctaQuestLabel: {

@@ -396,8 +396,8 @@ export default function CombatScreen() {
                 -1
               </Animated.Text>
             </View>
-            <View>
-              <Text style={styles.enemyName}>{battle.enemy.name.toUpperCase().replace(' ','_')}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.enemyName} numberOfLines={1} ellipsizeMode="tail">{battle.enemy.name.toUpperCase().replace(' ','_')}</Text>
               <View style={styles.heartsRow}>
                 {[...Array(totalHearts)].map((_, i) => (
                   <MaterialIcons key={i} name="favorite" size={12} color={i < activeHearts ? AuthColors.crimson : "#CBD5E1"} />
@@ -448,18 +448,20 @@ export default function CombatScreen() {
       )}
 
       {battle?.activeEffect && (
-        <View style={styles.activeEffectBadge}>
-          <MaterialIcons name="auto-awesome" size={14} color={AuthColors.gold} />
-          <Text style={styles.activeEffectText}>
-            {(() => {
-              const eff = battle.activeEffect;
-              if (!eff) return '';
-              if (eff.item_type === 'potion') return `REPS -${eff.effect_value}`;
-              if (eff.item_type === 'exp_boost') return `XP x${eff.effect_value}`;
-              if (eff.item_type === 'streak_restore') return `STREAK SHIELD`;
-              return '';
-            })()}
-          </Text>
+        <View style={styles.activeEffectWrap}>
+          <View style={styles.activeEffectBadge}>
+            <MaterialIcons name="auto-awesome" size={14} color={AuthColors.gold} />
+            <Text style={styles.activeEffectText}>
+              {(() => {
+                const eff = battle.activeEffect;
+                if (!eff) return '';
+                if (eff.item_type === 'potion') return `REPS -${eff.effect_value}`;
+                if (eff.item_type === 'exp_boost') return `XP x${eff.effect_value}`;
+                if (eff.item_type === 'streak_restore') return `STREAK SHIELD`;
+                return '';
+              })()}
+            </Text>
+          </View>
         </View>
       )}
 
@@ -524,17 +526,17 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#000' },
   scanlines: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(18,52,65,0.2)' },
   attackFlash: { backgroundColor: AuthColors.white, zIndex: 10 },
-  topHud: { position: 'absolute', top: 64, left: '50%', transform: [{ translateX: -190 }], width: 380, flexDirection: 'row', alignItems: 'flex-start', gap: 8, zIndex: 40 },
-  enemyCard: { flex: 1, backgroundColor: AuthColors.white, borderWidth: 3, borderColor: '#123441', padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  enemyInner: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  topHud: { position: 'absolute', top: 64, left: 0, right: 0, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'flex-start', gap: 8, zIndex: 40 },
+  enemyCard: { flex: 1, backgroundColor: AuthColors.white, borderWidth: 3, borderColor: '#123441', padding: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  enemyInner: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, marginRight: 8 },
   enemyAvatar: { width: 48, height: 48, borderWidth: 3, borderColor: '#123441', backgroundColor: '#c6e8f8', padding: 4, overflow: 'hidden', position: 'relative' },
   enemyAvatarInner: { flex: 1, backgroundColor: '#6fd8c8' },
   damageText: { position: 'absolute', top: 0, left: 16, fontFamily: Fonts.vt323, fontSize: 32, color: AuthColors.crimson, textShadowColor: '#123441', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 1, zIndex: 100 },
   enemyName: { fontFamily: Fonts.pixel, fontSize: 10, color: '#123441', marginBottom: 4 },
   heartsRow: { flexDirection: 'row', gap: 2 },
-  hpBg: { width: 96, height: 12, backgroundColor: '#E2E8F0', borderWidth: 2, borderColor: '#123441', marginTop: 4, overflow: 'hidden' },
+  hpBg: { width: '100%', maxWidth: 96, height: 12, backgroundColor: '#E2E8F0', borderWidth: 2, borderColor: '#123441', marginTop: 4, overflow: 'hidden' },
   hpFill: { height: '100%', backgroundColor: AuthColors.crimson },
-  fleeBtn: { backgroundColor: '#E2E8F0', borderWidth: 3, borderColor: '#123441', paddingHorizontal: 16, paddingVertical: 4 },
+  fleeBtn: { backgroundColor: '#E2E8F0', borderWidth: 3, borderColor: '#123441', paddingHorizontal: 10, paddingVertical: 4 },
   fleeBtnText: { fontFamily: Fonts.pixel, fontSize: 10, color: '#123441' },
   rightHud: { gap: 8 },
   streakBadge: { backgroundColor: AuthColors.navy, borderWidth: 3, borderColor: AuthColors.gold, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 4, gap: 4 },
@@ -571,7 +573,8 @@ const styles = StyleSheet.create({
   comboCard: { borderWidth: 3, borderColor: '#123441', shadowColor: '#123441', shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0, padding: 8, transform: [{ rotate: '12deg' }] },
   comboText: { fontFamily: Fonts.pixel, fontSize: 10, color: AuthColors.white },
 
-  activeEffectBadge: { position: 'absolute', top: 140, left: '50%', transform: [{ translateX: -70 }], flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 4, borderWidth: 1, borderColor: AuthColors.gold, zIndex: 50 },
+  activeEffectWrap: { position: 'absolute', top: 140, left: 0, right: 0, alignItems: 'center', zIndex: 50 },
+  activeEffectBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 4, borderWidth: 1, borderColor: AuthColors.gold },
   activeEffectText: { fontFamily: Fonts.pixel, fontSize: 9, color: AuthColors.gold, marginLeft: 6, letterSpacing: 1 },
   positioningOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,10,20,0.88)', justifyContent: 'center', alignItems: 'center', zIndex: 100, paddingHorizontal: 32 },
   positioningIcon: { fontSize: 72, marginBottom: 16 },

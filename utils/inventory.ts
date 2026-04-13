@@ -35,6 +35,16 @@ export async function fetchStoreCatalog(): Promise<CatalogItem[]> {
   
   let DBItems = (data as CatalogItem[])
     .filter(item => item.name !== 'Item Name')
+    .map(item => {
+      // Override price of DB Streak Saver
+      if (item.name === 'Streak Saver') {
+              return { ...item, price: 1500 };
+            }
+            if (item.item_type === 'potion') {
+              return { ...item, description: `Instantly deals ${item.effect_value * 10} base damage to the enemy at the start of battle.` };
+            }
+      return item;
+    })
     .sort((a, b) => a.price - b.price);
 
   // Inject hardcoded cosmetics locally since we can't alter RLS database from the app without migrations
@@ -70,86 +80,7 @@ export async function fetchStoreCatalog(): Promise<CatalogItem[]> {
     icon_name: 'shirt-outline',
     skin_id: 'atom_eve'
   };
-
-  // Hardcoded skills
-  const adrenalineRushSkill: CatalogItem = {
-    id: 'skill-001',
-    name: 'Adrenaline Rush',
-    description: 'Complete 5 reps in under 15 seconds to gain a momentum buff: 1.5x XP multiplier for the rest of the battle.',
-    price: 200,
-    item_type: 'skill',
-    effect_value: 1.5,
-    icon_name: 'zap',
-    skill_id: 'adrenaline_rush'
-  };
-
-  const heavyStrikeSkill: CatalogItem = {
-    id: 'skill-002',
-    name: 'Heavy Strike',
-    description: 'Every 5th consecutive rep counts as a Critical Hit, dealing double damage to the enemy\'s HP.',
-    price: 300,
-    item_type: 'skill',
-    effect_value: 2,
-    icon_name: 'flash',
-    skill_id: 'heavy_strike'
-  };
-
-  const secondWindSkill: CatalogItem = {
-    id: 'skill-003',
-    name: 'Second Wind',
-    description: 'Once per battle, if the timer drops below 5 seconds and the enemy is not defeated, automatically add 10 seconds to the clock.',
-    price: 400,
-    item_type: 'skill',
-    effect_value: 10,
-    icon_name: 'wind',
-    skill_id: 'second_wind'
-  };
-
-  const formMasterySkill: CatalogItem = {
-    id: 'skill-004',
-    name: 'Form Mastery',
-    description: 'Reps performed with slow, controlled cadence (>2 seconds) award a 1.5x XP bonus.',
-    price: 250,
-    item_type: 'skill',
-    effect_value: 1.5,
-    icon_name: 'target',
-    skill_id: 'form_mastery'
-  };
-
-  const lootScavengerSkill: CatalogItem = {
-    id: 'skill-005',
-    name: 'Loot Scavenger',
-    description: 'Grants a 20% chance to double the coin reward upon defeating an enemy.',
-    price: 350,
-    item_type: 'skill',
-    effect_value: 0.2,
-    icon_name: 'gift',
-    skill_id: 'loot_scavenger'
-  };
-
-  const ironLungsSkill: CatalogItem = {
-    id: 'skill-006',
-    name: 'Iron Lungs',
-    description: 'Increases the inactivity failure timer during Endurance Boss battles from 7 to 10 seconds.',
-    price: 500,
-    item_type: 'skill',
-    effect_value: 3,
-    icon_name: 'heart',
-    skill_id: 'iron_lungs'
-  };
-
-  const doubleDamageSkill: CatalogItem = {
-    id: 'skill-007',
-    name: 'Double Damage',
-    description: 'Doubles the damage dealt by every rep during combat. This is a game-changing power!',
-    price: 25000,
-    item_type: 'skill',
-    effect_value: 2,
-    icon_name: 'explosion',
-    skill_id: 'double_damage'
-  };
-
-  return [...DBItems, mSeriesSkin, omniManSkin, atomEveSkin, adrenalineRushSkill, heavyStrikeSkill, secondWindSkill, formMasterySkill, lootScavengerSkill, ironLungsSkill, doubleDamageSkill];
+  return [...DBItems, mSeriesSkin, omniManSkin, atomEveSkin];
 }
 
 /** Fetch current inventory from user_inventory */

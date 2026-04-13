@@ -89,7 +89,7 @@ export const PASSIVE_SKILLS: Record<SkillId, PassiveSkill> = {
     description: 'Complete 5 reps in under 15 seconds to gain a momentum buff: 1.5x XP multiplier for the rest of the battle.',
     category: 'combat',
     icon: '⚡',
-    unlockLevel: 5,
+    unlockLevel: 2,
     purchaseCost: 200,
     mechanics: {
       adrenalineRushWindow: 15000,
@@ -115,7 +115,7 @@ export const PASSIVE_SKILLS: Record<SkillId, PassiveSkill> = {
     description: 'Once per battle, if the timer drops below 5 seconds and the enemy is not defeated, automatically add 10 seconds to the clock.',
     category: 'scaling',
     icon: '💨',
-    unlockLevel: 15,
+    unlockLevel: 20,
     purchaseCost: 400,
     mechanics: {
       secondWindTimeThreshold: 5,
@@ -128,7 +128,7 @@ export const PASSIVE_SKILLS: Record<SkillId, PassiveSkill> = {
     description: 'Reps performed with slow, controlled cadence (>2 seconds) award a 1.5x XP bonus.',
     category: 'utility',
     icon: '🎯',
-    unlockLevel: 8,
+    unlockLevel: 5,
     purchaseCost: 250,
     mechanics: {
       formMasteryDuration: 2000,
@@ -141,7 +141,7 @@ export const PASSIVE_SKILLS: Record<SkillId, PassiveSkill> = {
     description: 'Grants a 20% chance to double the coin reward upon defeating an enemy.',
     category: 'economy',
     icon: '💰',
-    unlockLevel: 12,
+    unlockLevel: 15,
     purchaseCost: 350,
     mechanics: {
       lootScavengerChance: 0.2,
@@ -154,7 +154,7 @@ export const PASSIVE_SKILLS: Record<SkillId, PassiveSkill> = {
     description: 'Increases the inactivity failure timer during Endurance Boss battles from 7 to 10 seconds.',
     category: 'utility',
     icon: '🫁',
-    unlockLevel: 20,
+    unlockLevel: 25,
     purchaseCost: 500,
     mechanics: {
       ironLungsInactivityBase: 7,
@@ -167,7 +167,7 @@ export const PASSIVE_SKILLS: Record<SkillId, PassiveSkill> = {
     description: 'Doubles the damage dealt by every rep during combat. This is a game-changing power!',
     category: 'combat',
     icon: '💥',
-    unlockLevel: 30,
+    unlockLevel: 50,
     purchaseCost: 25000,
     mechanics: {
       doubleDamageMultiplier: 2,

@@ -27,6 +27,9 @@ export default function QuestScreen({ onBack }: QuestScreenProps) {
   const router = useRouter();
   const startBattle = useGameStore((s) => s.startBattle);
   const avatarLevel = useGameStore((s) => s.avatar.level);
+  const avatar = useGameStore((s) => s.avatar);
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   const handleQuestPress = useCallback((enemyIndex: number) => {
     if (ENEMIES.length > enemyIndex) {
@@ -75,6 +78,7 @@ export default function QuestScreen({ onBack }: QuestScreenProps) {
                 key={enemy.id}
                 enemy={enemyWithImage}
                 isLocked={isLocked}
+                isCompleted={avatar.lastActiveDate === todayStr && avatar.defeatedEnemies.includes(enemy.id)}
                 onPress={() => handleQuestPress(index)}
               />
             );

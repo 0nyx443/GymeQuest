@@ -76,7 +76,6 @@ export interface Enemy {
   timeLimit: number;        // seconds
   xpReward: number;
   coinReward: number;       // Gold coins rewarded on victory
-  statBoosts: Partial<Record<StatKey, number>>;
   difficulty: Difficulty;
   unlockLevel: number;      // Add this new required property
   lore: string;
@@ -98,13 +97,12 @@ export const ENEMIES: Enemy[] = [
     name: 'Goblin Scout',
     title: 'Forest Ambusher',
     hp: 100,
-    health: 130,
+    health: 100,
     exercise: 'push_up',
     repsRequired: 5,
     timeLimit: 60,
     xpReward: 120,
     coinReward: 50,
-    statBoosts: { strength: 2 },
     difficulty: 1,
     unlockLevel: 1,
     lore: 'A wiry creature haunting the Thornwood. Swift but fragile.',
@@ -116,13 +114,12 @@ export const ENEMIES: Enemy[] = [
     name: 'Iron Sentinel',
     title: 'Gate Warden',
     hp: 250,
-    health: 390,
+    health: 250,
     exercise: 'squat',
     repsRequired: 15,
     timeLimit: 90,
     xpReward: 280,
     coinReward: 120,
-    statBoosts: { stamina: 3, strength: 1 },
     difficulty: 2,
     unlockLevel: 10,
     lore: 'An ancient automaton guarding the Mountain Pass. Immovable and relentless.',
@@ -134,13 +131,12 @@ export const ENEMIES: Enemy[] = [
     name: 'Shadow Monk',
     title: 'Void Disciple',
     hp: 400,
-    health: 650,
+    health: 400,
     exercise: 'sit_up',
     repsRequired: 20,
     timeLimit: 120,
     xpReward: 450,
     coinReward: 200,
-    statBoosts: { agility: 4, stamina: 2 },
     difficulty: 3,
     unlockLevel: 20,
     lore: 'A former warrior consumed by darkness. Deadly fast.',
@@ -152,13 +148,12 @@ export const ENEMIES: Enemy[] = [
     name: 'Dragon Wyrmling',
     title: 'Sky Sovereign',
     hp: 600,
-    health: 910,
+    health: 600,
     exercise: 'pull_up',
     repsRequired: 5,
     timeLimit: 120,
     xpReward: 700,
     coinReward: 350,
-    statBoosts: { strength: 5, agility: 2 },
     difficulty: 4,
     unlockLevel: 30,
     lore: 'Young but catastrophically powerful. Its breath melts stone.',
@@ -170,13 +165,12 @@ export const ENEMIES: Enemy[] = [
     name: 'Ancient Colossus',
     title: 'World Ender',
     hp: 1000,
-    health: 1170,
+    health: 1000,
     exercise: 'push_up',
     repsRequired: 30,
     timeLimit: 150,
     xpReward: 1200,
     coinReward: 600,
-    statBoosts: { strength: 6, stamina: 5, agility: 3 },
     difficulty: 5,
     unlockLevel: 40,
     lore: 'A primordial titan. The mountains tremble at its footsteps.',
@@ -195,10 +189,9 @@ export const BOSSES: Enemy[] = [
     health: 50000,
     exercise: 'squat',
     repsRequired: 9999,
-    timeLimit: 30, // 30 seconds
+    timeLimit: 30, // 30 seconds (BattleHubScreen overrides this at runtime)
     xpReward: 0,
     coinReward: 0,
-    statBoosts: { strength: 2, stamina: 2 },
     difficulty: 1,
     unlockLevel: 1,
     lore: 'An endless swarm of minor goblins. Survive for 30 seconds.',
@@ -214,10 +207,9 @@ export const BOSSES: Enemy[] = [
     health: 100000,
     exercise: 'squat',
     repsRequired: 9999,
-    timeLimit: 60, // 60 seconds
+    timeLimit: 60, // 60 seconds (BattleHubScreen overrides this at runtime)
     xpReward: 0,
     coinReward: 0,
-    statBoosts: { strength: 5, stamina: 5 },
     difficulty: 3,
     unlockLevel: 1,
     lore: 'A heavily armored line of Orc warriors. Hold out for 1 minute.',
@@ -233,10 +225,9 @@ export const BOSSES: Enemy[] = [
     health: 200000,
     exercise: 'squat', // Fallback, uses phases mostly
     repsRequired: 9999, // limitless
-    timeLimit: 120, // 2 minutes timer
+    timeLimit: 120, // 2 minutes timer (BattleHubScreen overrides this at runtime)
     xpReward: 0,
     coinReward: 0,
-    statBoosts: { strength: 10, stamina: 10 },
     difficulty: 5,
     unlockLevel: 1,
     lore: 'The legendary Titan. Stand your ground for 2 agonizing minutes.',
@@ -252,35 +243,8 @@ export const MAX_LEVEL = 50;
 // ── NEW: Dynamic XP Table Generator ──
 // Generates an array of XP requirements for all 50 levels
 export const XP_TABLE = Array.from({ length: MAX_LEVEL + 1 }, (_, level) => {
-  // Levels 0 and 1 require 0 XP
   if (level <= 1) return 0;
-  
-  let totalXp = 0;
-  let currentReq = 300; // Base requirement
-  
-  for (let i = 2; i <= level; i++) {
-    if (i > 2) {
-      if (i <= 5) {
-        currentReq += 200;
-      } else if (i <= 10) {
-        currentReq += 200;
-      } else if (i <= 20) {
-        currentReq += 500;
-      } else if (i <= 30) {
-        currentReq += 1000;
-      } else if (i <= 40) {
-        currentReq += 1500;
-      } else {
-        currentReq += 2000;
-      }
-    }
-    totalXp += currentReq;
-  }
-  
-  // Snap the final total so it's ALWAYS a clean number ending in 000 or 500
-  let roundedXp = Math.ceil(totalXp / 500) * 500;
-  
-  return roundedXp;
+  return Math.round(250 * Math.pow(level, 1.7));
 });
 
 export const POSE_LANDMARKS = {

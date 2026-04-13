@@ -24,6 +24,7 @@ export default function CombatScreen() {
   const battle        = useGameStore((s) => s.battle);
   const registerRep   = useGameStore((s) => s.registerRep);
   const resolveBattle = useGameStore((s) => s.resolveBattle);
+  const battleResolvedRef = useRef(false);
   const setBattleActive = useGameStore((s) => s.setBattleActive);
   const resetBattle   = useGameStore((s) => s.resetBattle);
   
@@ -70,8 +71,20 @@ export default function CombatScreen() {
   const hasPhases = battle?.enemy.isEndurance && phaseList && phaseList.length > 0;
   const currentPhase = hasPhases ? phaseList[currentPhaseIndex % phaseList.length] : null;
 
+  useEffect(() => {
+    if (battle?.enemy?.id) {
+      battleResolvedRef.current = false;
+    }
+  }, [battle?.enemy?.id]);
+
+  useEffect(() => {
+    return () => {
+      battleResolvedRef.current = false;
+    };
+  }, []);
+
   const exercise    = currentPhase ? currentPhase.exercise : (battle?.enemy.exercise ?? 'push_up');
-  const phaseGoal   = currentPhase ? currentPhase.reps : (battle?.effectiveReps ?? battle?.enemy.repsRequired ?? 10);
+  const phaseGoal = currentPhase ? currentPhase.reps : (battle?.effectiveReps ?? battle?.enemy.repsRequired ?? 10);
   const exerciseDef = EXERCISES[exercise];
 
   const {
@@ -205,6 +218,8 @@ export default function CombatScreen() {
     timerIntervalRef.current = setInterval(() => {
       // Inactivity Check for Endurance
       if (battle.enemy.isEndurance && Date.now() - lastRepTimeRef.current > 7000) {
+        if (battleResolvedRef.current) return;
+        battleResolvedRef.current = true;
         // 7 seconds without a rep -> DEFEAT
         stopCombatBgm();
         resolveBattle('defeat');
@@ -220,6 +235,8 @@ export default function CombatScreen() {
         }
 
         if (prev <= 1) {
+          if (battleResolvedRef.current) return 0;
+          battleResolvedRef.current = true;
           stopCombatBgm();
           if (battle.enemy.isEndurance) {
             resolveBattle('victory');
@@ -239,13 +256,15 @@ export default function CombatScreen() {
   useEffect(() => {
     if (!battle || battle.phase !== 'victory') return;
     if (!isActive) return;
+    if (battleResolvedRef.current) return;
+    battleResolvedRef.current = true;
     
     stopCombatBgm();
     setIsActive(false);
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     
     // Resolve the victory battle (XP, stats, etc.)
-    resolveBattle('victory');
+    resolveBattle('victory').catch(() => {});
     
     // Fire victory speech
     webViewRef.current?.injectJavaScript(`
@@ -254,7 +273,7 @@ export default function CombatScreen() {
     `);
     
     setTimeout(() => router.replace('/post-battle'), 800);
-  }, [battle?.phase, isActive, router, resolveBattle]);
+  }, [battle?.phase, isActive]);
 
   // ── Rep detection & flash ──────────────────────────────────────────────────
   useEffect(() => {
@@ -438,7 +457,7 @@ export default function CombatScreen() {
               </View>
             </View>
           </View>
-          <TouchableOpacity style={styles.fleeBtn} onPress={() => { stopCombatBgm(); resolveBattle('defeat'); router.replace('/post-battle'); }}>
+          <TouchableOpacity style={styles.fleeBtn} onPress={() => { if (battleResolvedRef.current) return; battleResolvedRef.current = true; stopCombatBgm(); resolveBattle('defeat'); router.replace('/post-battle'); }}>
             <Text style={styles.fleeBtnText}>FLEE</Text>
           </TouchableOpacity>
         </View>
@@ -456,17 +475,40 @@ export default function CombatScreen() {
 
       {/* ── ALERTS / DAMAGE HUD ── */}
       <View style={styles.repRow} pointerEvents="none">
-        <View style={styles.repsLeftCard}>
+        <View style={styles.repRowTop}>
+          <View style={styles.repsLeftCard}>
+            <Text style={styles.repsLeftVal}>
+              {battle.enemy.isEndurance ? '∞' : Math.round(battle.enemy.health)}
+            </Text>
+            <View style={styles.divThin} />
+            <Text style={styles.repsLeftLbl}>MAX HP</Text>
+          </View>
+          <View style={styles.mainRepCard}>
+            <Text style={styles.mainDamageVal}>{Math.round(battle.totalDamageDealt)}</Text>
+            <View style={styles.divThick} />
+            <Text style={styles.mainDamageLbl}>DAMAGE</Text>
+          </View>
+          <View style={styles.repsLeftCard}>
+            <Text style={styles.repsLeftVal}>
+              {Math.round(battle.damagePerRep)}
+            </Text>
+            <View style={styles.divThin} />
+            <Text style={styles.repsLeftLbl}>DMG/REP</Text>
+          </View>
+          <View style={styles.repsLeftCard}>
+            <Text style={styles.repsLeftVal}>
+              {Math.round(battle.damagePerRep)}
+            </Text>
+            <View style={styles.divThin} />
+            <Text style={styles.repsLeftLbl}>DMG/REP</Text>
+          </View>
+        </View>
+        <View style={[styles.repsLeftCard, { alignSelf: 'center', minWidth: 120 }]}>
           <Text style={styles.repsLeftVal}>
-            {battle.enemy.isEndurance ? '∞' : Math.round(battle.enemy.health)}
+            {battle.repsCompleted}
           </Text>
           <View style={styles.divThin} />
-          <Text style={styles.repsLeftLbl}>MAX HP</Text>
-        </View>
-        <View style={styles.mainRepCard}>
-          <Text style={styles.mainRepVal}>{Math.round(battle.totalDamageDealt)}</Text>
-          <View style={styles.divThick} />
-          <Text style={styles.mainRepLbl}>DAMAGE</Text>
+          <Text style={styles.repsLeftLbl}>REPS</Text>
         </View>
       </View>
 
@@ -485,7 +527,7 @@ export default function CombatScreen() {
               {(() => {
                 const eff = battle.activeEffect;
                 if (!eff) return '';
-                if (eff.item_type === 'potion') return `REPS -${eff.effect_value}`;
+                if (eff.item_type === 'potion') return `DMG +${eff.effect_value * 10}`;
                 if (eff.item_type === 'exp_boost') return `XP x${eff.effect_value}`;
                 if (eff.item_type === 'streak_restore') return `STREAK SHIELD`;
                 return '';
@@ -595,15 +637,16 @@ const styles = StyleSheet.create({
   dmgContainer: { position: 'absolute', top: '50%', left: '50%', transform: [{ translateX: -48 }, { translateY: -96 }], zIndex: 60 },
   dmgText: { fontFamily: Fonts.pixel, fontSize: 32, color: AuthColors.crimson, textShadowColor: '#000', textShadowOffset: { width: 2, height: 2 }, textShadowRadius: 0 },
 
-  repRow: { position: 'absolute', bottom: 120, left: '50%', transform: [{ translateX: -100 }], flexDirection: 'row', alignItems: 'flex-end', gap: 12, zIndex: 40 },
+  repRow: { position: 'absolute', bottom: 120, left: 0, right: 0, alignItems: 'center', justifyContent: 'flex-end', gap: 12, zIndex: 40 },
+  repRowTop: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
   repsLeftCard: { backgroundColor: AuthColors.white, borderWidth: 3, borderColor: '#123441', shadowColor: '#123441', shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0, padding: 8, minWidth: 80, alignItems: 'center', marginBottom: 4 },
   repsLeftVal: { fontFamily: Fonts.pixel, fontSize: 24, color: '#006A60' },
   divThin: { height: 2, backgroundColor: '#123441', width: '100%', marginTop: 4, marginBottom: 2 },
   repsLeftLbl: { fontFamily: Fonts.vt323, fontSize: 14, letterSpacing: 2, color: '#123441' },
-  mainRepCard: { backgroundColor: AuthColors.white, borderWidth: 3, borderColor: '#123441', shadowColor: '#123441', shadowOffset: { width: 6, height: 6 }, shadowOpacity: 1, shadowRadius: 0, padding: 16, minWidth: 120, alignItems: 'center' },
-  mainRepVal: { fontFamily: Fonts.pixel, fontSize: 56, color: AuthColors.crimson, marginBottom: 4 },
+  mainRepCard: { backgroundColor: AuthColors.white, borderWidth: 3, borderColor: '#123441', shadowColor: '#123441', shadowOffset: { width: 6, height: 6 }, shadowOpacity: 1, shadowRadius: 0, padding: 12, minWidth: 100, alignItems: 'center' },
+  mainDamageVal: { fontFamily: Fonts.pixel, fontSize: 40, color: AuthColors.crimson, marginBottom: 4 },
   divThick: { height: 3, backgroundColor: '#123441', width: '100%', marginBottom: 4 },
-  mainRepLbl: { fontFamily: Fonts.vt323, fontSize: 24, letterSpacing: 4, color: '#123441' },
+  mainDamageLbl: { fontFamily: Fonts.vt323, fontSize: 20, letterSpacing: 4, color: '#123441' },
 
   comboWrap: { position: 'absolute', right: 24, bottom: 144, alignItems: 'center', zIndex: 50 },
   comboCard: { borderWidth: 3, borderColor: '#123441', shadowColor: '#123441', shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0, padding: 8, transform: [{ rotate: '12deg' }] },
@@ -733,7 +776,7 @@ const styles = StyleSheet.create({
   },
   formFeedbackBadge: {
     position: 'absolute',
-    bottom: 220,
+    top: '30%', // Moved to top so it doesn't overlap the large health/damage components below
     alignSelf: 'center',
     backgroundColor: 'rgba(230, 57, 70, 0.9)',
     borderWidth: 2,

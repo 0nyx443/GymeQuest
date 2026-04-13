@@ -35,6 +35,13 @@ export default function DashboardScreen() {
     }
   }, [startBattle, router]);
 
+  // Calculate if the daily bounty is actually completed TODAY
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const isDailyCompleted = avatar.lastActiveDate === todayStr 
+    && ENEMIES.length > 1 
+    && avatar.defeatedEnemies.includes(ENEMIES[1].id);
+
   // Replaced the hardcoded 10 with MAX_LEVEL so it scales with your 1.2M XP
   const nextLevelXp = avatar.level < MAX_LEVEL ? XP_TABLE[avatar.level + 1] : avatar.xp;
 
@@ -75,7 +82,7 @@ export default function DashboardScreen() {
         {/* Updated to pass the full Enemy object so the Timer card works */}
         <DailyBountyCard
           enemy={ENEMIES && ENEMIES.length > 1 ? ENEMIES[1] : (ENEMIES[0] as any)}
-          isCompleted={ENEMIES.length > 1 ? avatar.defeatedEnemies.includes(ENEMIES[1].id) : false}
+          isCompleted={isDailyCompleted}
           onPress={handleQuestPress}
         />
       </ScrollView>

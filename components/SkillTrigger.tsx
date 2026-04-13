@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   text: {
-    ...Fonts.vt323,
+    fontFamily: Fonts.vt323,
     fontSize: 14,
     fontWeight: 'bold',
     letterSpacing: 1,

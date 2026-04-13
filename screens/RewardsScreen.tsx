@@ -1,8 +1,9 @@
-import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Modal, Pressable } from 'react-native';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { useGameStore } from '@/store/gameStore';
 import { MAX_LEVEL } from '@/constants/game';
+import { PASSIVE_SKILLS, PassiveSkill } from '@/utils/skills';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
@@ -17,6 +18,7 @@ export default function RewardsScreen() {
 
   // Use a ref to scroll to bottom on mount
   const scrollRef = useRef<ScrollView>(null);
+  const [selectedSkill, setSelectedSkill] = useState<PassiveSkill | null>(null);
 
   useEffect(() => {
     // Small timeout ensures layout is computed before scrolling
@@ -75,6 +77,10 @@ export default function RewardsScreen() {
             }
 
             const rewardCols = level === 1 ? 0 : level * 50;
+            const unlockedSkill = Object.values(PASSIVE_SKILLS).find((s: any) => s.unlockLevel === level);
+            let slotUpgrade = '';
+            if (level === 10) slotUpgrade = 'Unlock 2nd Skill Slot';
+            if (level === 20) slotUpgrade = 'Unlock 3rd Skill Slot';
 
             return (
               <View key={level} style={styles.row}>
@@ -95,13 +101,29 @@ export default function RewardsScreen() {
                     <Text style={[styles.levelText, !isUnlockable && styles.textLocked]}>
                       LEVEL {level}
                     </Text>
-                    {level > 1 && (
-                      <View style={[styles.rewardTag, !isUnlockable && styles.rewardTagLocked]}>
-                        <Text style={[styles.rewardTagText, !isUnlockable && styles.textLocked]}>
-                          +{rewardCols} Coins
-                        </Text>
-                      </View>
-                    )}
+                    <View style={{ gap: 6, marginTop: 4 }}>
+                      {level > 1 && (
+                        <View style={[styles.rewardTag, !isUnlockable && styles.rewardTagLocked]}>
+                          <Text style={[styles.rewardTagText, !isUnlockable && styles.textLocked]}>
+                            +{rewardCols} Coins
+                          </Text>
+                        </View>
+                      )}
+                      {unlockedSkill && (
+                        <TouchableOpacity style={[styles.rewardTag, !isUnlockable && styles.rewardTagLocked, { backgroundColor: isUnlockable ? AuthColors.tealLink + '20' : '#E8E8E8' }]} onPress={() => setSelectedSkill(unlockedSkill as PassiveSkill)}>
+                          <Text style={[styles.rewardTagText, { color: isUnlockable ? AuthColors.tealLink : '#999' }]}>
+                            🌟 {unlockedSkill.name} Skill
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                      {slotUpgrade !== '' && (
+                        <View style={[styles.rewardTag, !isUnlockable && styles.rewardTagLocked, { backgroundColor: isUnlockable ? '#FFD700' + '30' : '#E8E8E8' }]}>
+                          <Text style={[styles.rewardTagText, { color: isUnlockable ? '#B8860B' : '#999', fontWeight: 'bold' }]}>
+                            🎒 {slotUpgrade}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
 
                   <View style={styles.cardFooter}>
@@ -121,6 +143,28 @@ export default function RewardsScreen() {
           })}
         </View>
       </ScrollView>
+
+      {/* Skill Detail Modal */}
+      <Modal visible={!!selectedSkill} transparent animationType="fade" onRequestClose={() => setSelectedSkill(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setSelectedSkill(null)}>
+          <Pressable style={styles.modalContent}>
+            {selectedSkill && (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>{selectedSkill.name}</Text>
+                  <TouchableOpacity onPress={() => setSelectedSkill(null)} style={styles.closeBtn}>
+                    <MaterialCommunityIcons name="close-thick" size={24} color={AuthColors.navy} />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.modalDesc}>{selectedSkill.description}</Text>
+                <View style={styles.modalBadge}>
+                  <Text style={styles.modalBadgeText}>{selectedSkill.category.charAt(0).toUpperCase() + selectedSkill.category.slice(1) + ' Skill'}</Text>
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -217,10 +261,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 6,
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 8,
+    gap: 8,
   },
   levelText: {
     fontFamily: Fonts.pixel,
@@ -278,4 +322,13 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     letterSpacing: 1,
   },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalContent: { backgroundColor: '#FFF', width: '100%', padding: 20, borderWidth: 4, borderColor: AuthColors.navy, borderBottomWidth: 8 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 2, borderBottomColor: AuthColors.navy, paddingBottom: 12, marginBottom: 16 },
+  modalTitle: { fontFamily: Fonts.pixel, fontSize: 16, color: AuthColors.navy, flex: 1 },
+  closeBtn: { padding: 4 },
+  modalDesc: { fontFamily: Fonts.vt323, fontSize: 18, color: AuthColors.textDark, lineHeight: 24, marginBottom: 16 },
+  modalBadge: { alignSelf: 'flex-start', backgroundColor: AuthColors.tealLink, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 2, borderColor: AuthColors.navy },
+  modalBadgeText: { fontFamily: Fonts.pixel, fontSize: 10, color: '#FFF' },
 });

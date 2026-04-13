@@ -54,7 +54,7 @@ export function SkillsPanel() {
             <View key={skillId} style={styles.skillCard}>
               {!isAvailable && (
                 <View style={styles.lockOverlay}>
-                  <MaterialCommunityIcons name="lock-closed" size={20} color="#FFF" />
+                  <MaterialCommunityIcons name="lock" size={20} color="#FFF" />
                   <Text style={styles.lockText}>Lvl {skill.unlockLevel}</Text>
                 </View>
               )}

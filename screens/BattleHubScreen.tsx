@@ -52,6 +52,7 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
   const [timeLeft, setTimeLeft] = useState('');
   const [weeklyTimeLeft, setWeeklyTimeLeft] = useState('');
   const [rewardAnimVisible, setRewardAnimVisible] = useState(false);
+  const [exerciseModalVisible, setExerciseModalVisible] = useState(false);
   const rewardScaleAnim = useRef(new Animated.Value(0)).current;
 
   const _claimReward = useCallback(() => {
@@ -105,41 +106,75 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
 
   // Quick stat summary
   const dailyEnemy = useMemo(() => {
-    if (!ENEMIES.length) return null;
-    
-    const todayStr = new Date().toISOString().split('T')[0];
-    
-    // Find the highest-tier enemy the player has unlocked
-    let baseEnemy = ENEMIES[0];
-    for (let i = 0; i < ENEMIES.length; i++) {
-       if (avatar.level >= ENEMIES[i].unlockLevel) {
-          baseEnemy = ENEMIES[i];
-       }
-    }
+          if (!ENEMIES.length) return null;
+          
+          const todayStr = new Date().toISOString().split('T')[0];
+          
+          // Select an enemy from the roster rotating daily
+          const dayOfYear = Math.floor(new Date().getTime() / (1000 * 60 * 60 * 24));
+          const availableEnemies = ENEMIES.filter((e) => avatar.level >= (e.unlockLevel || 0) / 2);
+          const pool = availableEnemies.length > 0 ? availableEnemies : [ENEMIES[0]];
+          const baseEnemy = pool[dayOfYear % pool.length];
 
-    // Scale reps and parameters slightly based on their level
-    const scaledReps = Math.floor(avatar.level * 1.2) + 4; // Lvl 1 = 5
-    
-    return {
-      ...baseEnemy,
-      id: `daily_${baseEnemy.id}_${todayStr}`,
-      name: `Lvl ${avatar.level} ${baseEnemy.name}`,
-      title: 'Daily Bounty',
-      repsRequired: scaledReps,
-      hp: scaledReps * 20,
-      xpReward: Math.floor(avatar.level * 40) + 100,
-      coinReward: Math.floor(avatar.level * 10) + 40,
-    };
-  }, [avatar.level]);
+          // Daily Bounty should be decidedly harder and more rewarding than a Quick Fight
+          const scaledReps = Math.floor(avatar.level * 2.5) + 10;
+          const scaledHealth = Math.round((avatar.level * 2.5 + 10) * 15);
+          
+          return {
+            ...baseEnemy,
+            id: `daily_bounty_${todayStr}`,
+            name: `Elite ${baseEnemy.name}`,
+            title: 'Daily Bounty',
+            repsRequired: scaledReps,
+            hp: scaledHealth,
+            health: scaledHealth,
+            xpReward: Math.floor(avatar.level * 100) + 300,
+            coinReward: Math.floor(avatar.level * 30) + 100,
+          };
+        }, [avatar.level]);
 
   const handleBattlePress = useCallback(() => {
+          if (dailyEnemy && avatar.lastDailyBountyDate === new Date().toISOString().split('T')[0]) {
+            Alert.alert('Daily Bounty Claimed!', 'You have already claimed this bounty today. Check out QUESTS for more battles!');
+            return;
+          }
+          if (dailyEnemy) {
+            startBattle(dailyEnemy);
+            router.push('/combat');
+          }
+        }, [startBattle, router, dailyEnemy, avatar.lastDailyBountyDate]);
+
+
+  const handleQuickFightPress = useCallback(() => {
     animPress(battleScaleAnim, () => {
-      if (dailyEnemy) {
-        startBattle(dailyEnemy);
-        router.push('/combat');
+      let baseEnemy = ENEMIES[0];
+      for (let i = 0; i < ENEMIES.length; i++) {
+         if (avatar.level >= ENEMIES[i].unlockLevel) {
+            baseEnemy = ENEMIES[i];
+         }
       }
+      
+      const availableExercises = ['push_up', 'sit_up', 'squat'];
+      const randomEx = availableExercises[Math.floor(Math.random() * availableExercises.length)];
+      
+      const scaledReps = Math.floor(avatar.level * 1.2) + 4;
+      const scaledHealth = Math.round((avatar.level * 1.2 + 4) * 12);
+      const quickEnemy = {
+        ...baseEnemy,
+        id: `quick_fight_${new Date().getTime()}`,
+        name: `Lvl ${avatar.level} Training`,
+        title: 'Quick Fight',
+        repsRequired: scaledReps,
+        hp: scaledHealth,
+        health: scaledHealth,
+        xpReward: Math.floor(avatar.level * 40) + 100,
+        coinReward: Math.floor(avatar.level * 10) + 40,
+        exercise: randomEx as any,
+      };
+      startBattle(quickEnemy);
+      router.push('/combat');
     });
-  }, [startBattle, router, dailyEnemy]);
+  }, [avatar.level, battleScaleAnim, startBattle, router]);
 
   const handleQuestsPress = useCallback(() => {
     animPress(questScaleAnim, () => {
@@ -172,11 +207,10 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
             )}
 
             {/* Coin Badge */}
-            <View style={styles.coinBadge}>
-              <MaterialCommunityIcons name="star-four-points" size={12} color="#FDE047" />
-              <Text style={styles.coinBadgeNum}>{avatar.coins}</Text>
-              <Text style={styles.coinBadgeLbl}>COINS</Text>
-            </View>
+              <View style={styles.coinBadge}>
+                <MaterialCommunityIcons name="circle-multiple-outline" size={20} color="#FBBF24" />
+                <Text style={styles.coinText}>{avatar.coins.toLocaleString()}</Text>
+              </View>
           </View>
         </View>
 
@@ -221,14 +255,14 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
           {/* BATTLE — primary action */}
           <Animated.View style={[styles.ctaBattleWrap, { transform: [{ scale: battleScaleAnim }] }]}>
             <TouchableOpacity
-              style={styles.ctaBattle}
-              activeOpacity={1}
-              onPress={handleBattlePress}
-            >
-              <MaterialCommunityIcons name="sword-cross" size={36} color="#FFFFFF" />
-              <Text style={styles.ctaBattleLabel}>BATTLE</Text>
-              <Text style={styles.ctaBattleSub}>Quick fight</Text>
-            </TouchableOpacity>
+                style={styles.ctaBattle}
+                activeOpacity={0.8}
+                onPress={handleQuickFightPress}
+              >
+                <MaterialCommunityIcons name="sword-cross" size={36} color="#FFFFFF" />
+                <Text style={styles.ctaBattleLabel}>BATTLE</Text>
+                <Text style={styles.ctaBattleSub}>Quick fight</Text>
+              </TouchableOpacity>
           </Animated.View>
 
           {/* QUESTS — secondary */}
@@ -264,8 +298,8 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
                 ...baseBoss,
                 id: 'endurance_weekly_boss',
                 name: 'Weekly Boss',
-                title: '1 Minute Trial',
-                timeLimit: 60, // Exactly 1 minute
+                title: '1.5 Minute Trial',
+                timeLimit: Math.round(90 + avatar.level * 1.8),
                 difficulty: 3 as const,
                 exercise: 'squat' as any, // Defaulting to squat
                 phases: undefined
@@ -291,14 +325,16 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
         {dailyEnemy && (
           <DailyBountyCard
             enemy={{ ...dailyEnemy, image: dailyEnemy.image }}
-            isCompleted={avatar.defeatedEnemies.includes(dailyEnemy.id)}
+            isCompleted={avatar.lastDailyBountyDate === new Date().toISOString().split('T')[0]}
             onPress={handleBattlePress}
           />
         )}
 
         {/* ── Stats Row ── */}
         <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>📊 STATS</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={styles.sectionTitle}>📊 STATS</Text>
+          </View>
           <View style={styles.statsRow}>
             {[
               { label: 'STR', value: avatar.stats?.strength ?? 10 },
@@ -311,8 +347,19 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
               </View>
             ))}
           </View>
+          <View style={{ marginTop: 10, padding: 12, backgroundColor: '#1E293B', borderWidth: 3, borderColor: AuthColors.navy, alignItems: 'center' }}>
+            <Text style={{ fontFamily: Fonts.pixel, fontSize: 16, color: '#00C9A7' }}>
+              BASE ATK: {Math.round(10 * (1 + ((avatar.stats?.strength ?? 10) + (avatar.stats?.agility ?? 10) + (avatar.stats?.stamina ?? 10)) / 100))} DMG / REP
+            </Text>
+            <Text style={{ fontFamily: Fonts.vt323, fontSize: 14, color: '#94A3B8', marginTop: 4, letterSpacing: 1 }}>
+              Trained attributes multiply your strike power!
+            </Text>
+          </View>
         </View>
       </ScrollView>
+
+      
+      
 
       {/* ── Reward Claim Animation Overlay ── */}
       {rewardAnimVisible && (
@@ -465,33 +512,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     lineHeight: 20,
   },
-  coinBadge: {
-    backgroundColor: '#1E293B', // Dark slate
-    borderWidth: 2,
-    borderColor: '#EAB308', // Gold
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    shadowColor: '#EAB308',
-    shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 0.5,
-    shadowRadius: 0,
-  },
-  coinBadgeNum: {
-    fontFamily: Fonts.pixel,
-    fontSize: 14,
-    color: '#FEF08A', // Light Gold
-    marginTop: 3, // Push text down to align baseline
-  },
-  coinBadgeLbl: {
-    fontFamily: Fonts.vt323,
-    fontSize: 13,
-    color: '#FDE047',
-    letterSpacing: 1,
-    marginTop: 2, // Push text down to align baseline
-  },
+  coinBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E293B', paddingHorizontal: 12, paddingVertical: 8, borderWidth: 2, borderColor: AuthColors.navy, gap: 6 },
+  
+  coinText: { fontFamily: Fonts.pixel, fontSize: 14, color: '#FBBF24' },
 
   // Boss Battle
   bossBattleCard: {
@@ -705,7 +728,11 @@ const styles = StyleSheet.create({
     
   // Modals
   modalOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
@@ -786,6 +813,15 @@ const styles = StyleSheet.create({
     color: "#64748B",
     textAlign: "center",
   },
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalCard: { width: '100%', backgroundColor: '#FFFFFF', borderWidth: 4, borderColor: AuthColors.navy, padding: 20, shadowColor: AuthColors.navy, shadowOffset: { width: 6, height: 6 }, shadowOpacity: 1, shadowRadius: 0, elevation: 6 },
+  modalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC', borderWidth: 2, borderColor: '#CBD5E1', padding: 12, marginBottom: 12 },
+  attrModalRow: { marginBottom: 12, backgroundColor: '#F8FAFC', borderWidth: 2, borderColor: '#CBD5E1', padding: 12 },
+  attrModalLabel: { fontFamily: Fonts.vt323, fontSize: 18, color: AuthColors.crimson, marginBottom: 4 },
+  attrModalDesc: { fontFamily: Fonts.vt323, fontSize: 16, color: '#3D494C' },
+  modalBtn: { backgroundColor: AuthColors.navy, paddingVertical: 12, alignItems: 'center', marginTop: 12, borderWidth: 2, borderColor: '#FFFFFF' },
+  modalBtnText: { fontFamily: Fonts.pixel, fontSize: 12, color: '#FFFFFF' },
+
 
   // Reward Anim
   rewardAnimOverlay: {

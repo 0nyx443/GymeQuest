@@ -18,10 +18,11 @@ interface QuestCardProps {
         color?: string;
     };
     isLocked?: boolean;
+    isCompleted?: boolean;
     onPress: () => void;
 }
 
-export function QuestCard({ enemy, isLocked, onPress }: QuestCardProps) {
+export function QuestCard({ enemy, isLocked, isCompleted, onPress }: QuestCardProps) {
     if (isLocked) {
         return (
             <View style={[styles.card, styles.lockedCard]}>
@@ -103,13 +104,19 @@ export function QuestCard({ enemy, isLocked, onPress }: QuestCardProps) {
                     </View>
                 </View>
 
-                <TouchableOpacity
-                    style={styles.fightButton}
-                    activeOpacity={0.7}
-                    onPress={onPress}
-                >
-                    <Text style={styles.fightButtonText}>FIGHT</Text>
-                </TouchableOpacity>
+                {isCompleted ? (
+                    <View style={[styles.fightButton, { backgroundColor: '#CBD5E1', borderColor: '#94A3B8' }]}>
+                        <Text style={[styles.fightButtonText, { color: '#64748b' }]}>RESTING</Text>
+                    </View>
+                ) : (
+                    <TouchableOpacity
+                        style={styles.fightButton}
+                        activeOpacity={0.7}
+                        onPress={onPress}
+                    >
+                        <Text style={styles.fightButtonText}>FIGHT</Text>
+                    </TouchableOpacity>
+                )}
             </View>
         </View>
     );

@@ -23,6 +23,7 @@ export interface AvatarState {
   currentStreak: number;   // NEW: Current daily workout streak
   lastActiveDate: string | null; // NEW: The ISO string date of last workout
   lastEnduranceDate: string | null; // NEW: The ISO string date of last endurance boss battle
+  lastDailyBountyDate: string | null; // NEW: Daily Bounty cooldown tracker
   claimedLevelRewards: number[]; // NEW: Levels for which rewards have been claimed
   stats: PlayerStats;
   defeatedEnemies: string[];
@@ -31,6 +32,7 @@ export interface AvatarState {
   purchasedSkills: string[];
   equippedSkills: string[];
   totalReps: number;
+  totalRepsByExercise: { push_up: number; squat: number; sit_up: number; pull_up: number };
   todayReps: { date: string } & Record<ExerciseType, number>; // For Today's reps
   totalBattles: number;
   victories: number;
@@ -73,7 +75,7 @@ interface GameStore {
   // Avatar actions
   gainXp: (amount: number) => void;
   boostStats: (boosts: Partial<PlayerStats>) => void;
-  recordBattle: (won: boolean, reps: number, enemy: Enemy, shieldActive?: boolean) => void;
+  recordBattle: (won: boolean, reps: number, enemy: Enemy, shieldActive?: boolean) => AvatarState;
 
   // Item actions
   loadInventory: () => Promise<void>;
@@ -92,7 +94,7 @@ interface GameStore {
   setBattleActive: () => void;
   registerRep: () => void;
   tickTimer: () => void;
-  resolveBattle: (outcome: 'victory' | 'defeat') => void;
+  resolveBattle: (outcome: 'victory' | 'defeat') => Promise<void>;
   resetBattle: () => void;
   resetAvatar: () => void;
   setAvatar: (avatarData: Partial<AvatarState>) => void;
@@ -118,8 +120,24 @@ function xpProgress(xp: number, level: number): number {
  * Formula: 10 * (1 + (strength + agility + stamina) / 100)
  */
 function calculateDamagePerRep(stats: PlayerStats): number {
-  const statSum = stats.strength + stats.agility + stats.stamina;
+  const statSum = Number(stats.strength) + Number(stats.agility) + Number(stats.stamina);
   return 10 * (1 + statSum / 100);
+}
+
+function calculateStatGains(totalRepsByExercise: { push_up: number; squat: number; sit_up: number; pull_up: number }, victories: number, level: number): PlayerStats {
+  const pushUpReps = Number(totalRepsByExercise.push_up) || 0;
+  const pullUpReps = Number(totalRepsByExercise.pull_up) || 0;
+  const squatReps = Number(totalRepsByExercise.squat) || 0;
+  const sitUpReps = Number(totalRepsByExercise.sit_up) || 0;
+
+  const milestones = [10, 25, 50, 100, 150, 200, 250, 300];
+  const milestoneBonus = (n: number) => 2 * milestones.filter(m => m <= n).length;
+
+  const str = 10 + Math.floor(level / 5) + Math.floor((pushUpReps + pullUpReps) / 10) + milestoneBonus(pushUpReps + pullUpReps);
+  const agi = 10 + Math.floor(level / 5) + Math.floor(squatReps / 10) + milestoneBonus(squatReps);
+  const sta = 10 + Math.floor(level / 5) + Math.floor(sitUpReps / 10) + victories + milestoneBonus(sitUpReps);
+
+  return { strength: str, agility: agi, stamina: sta };
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -132,6 +150,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     currentStreak: 0,
     lastActiveDate: null,
     lastEnduranceDate: null,
+    lastDailyBountyDate: null,
     claimedLevelRewards: [],
     stats: { strength: 10, agility: 10, stamina: 10 },
     defeatedEnemies: [],
@@ -140,6 +159,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     purchasedSkills: [],
     equippedSkills: [],
     totalReps: 0,
+    totalRepsByExercise: { push_up: 0, squat: 0, sit_up: 0, pull_up: 0 },
     todayReps: { date: '', push_up: 0, squat: 0, sit_up: 0, pull_up: 0 },
     totalBattles: 0,
     victories: 0,
@@ -216,36 +236,35 @@ export const useGameStore = create<GameStore>((set, get) => ({
     },
   })),
 
-  recordBattle: (won, reps, enemy, shieldActive) => set((state) => {
+  recordBattle: (won, reps, enemy, shieldActive) => {
+    const state = get();
     let { currentStreak, coins, lastActiveDate, stats } = state.avatar;
     let newDefeatedEnemies = state.avatar.defeatedEnemies;
+    const didExercise = reps > 0;
     
     // Add coins (base enemy reward + 1 per rep if won, else just partial reps)
-    // 3. AGI (Agility) = Small percent boost to total coin reward (1% increase per point of AGI)
-    let coinDrop = won ? (enemy.coinReward + reps) : Math.floor(reps / 2);
-    let agilityBonus = Math.floor(coinDrop * (stats.agility * 0.01));
-    coins += coinDrop + agilityBonus;
+    let coinDrop = 0;
+    if (didExercise) {
+      coinDrop = won
+        ? Math.round((enemy.coinReward + reps) * (1 + state.avatar.level * 0.08))
+        : Math.floor(reps / 2);
+    }
+    coins += coinDrop;
     
     // Manage Streak
     const todayStr = new Date().toISOString().split('T')[0];
-    if (lastActiveDate !== todayStr) {
+    if (didExercise && lastActiveDate !== todayStr) {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = yesterday.toISOString().split('T')[0];
       
-      if (lastActiveDate === yesterdayStr) {
+      if (lastActiveDate === yesterdayStr || shieldActive) {
         currentStreak += 1;
       } else if (!lastActiveDate) {
         currentStreak = 1;
       } else {
         // Streak broken
-        // NEW: Streak Saver Logic!
-        if (shieldActive) {
-          // If they missed days but used a shield, they keep their old streak and add 1 for today!
-          currentStreak += 1;
-        } else {
-          currentStreak = 1;
-        }
+        currentStreak = 1;
       }
       lastActiveDate = todayStr;
       
@@ -254,7 +273,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     let lastEnduranceDate = state.avatar.lastEnduranceDate;
-    if (enemy.isEndurance && won) {
+    if (enemy.isEndurance && won && didExercise) {
       lastEnduranceDate = todayStr;
     }
 
@@ -264,25 +283,40 @@ export const useGameStore = create<GameStore>((set, get) => ({
       newTodayReps = { date: todayStr, push_up: 0, squat: 0, sit_up: 0, pull_up: 0 };
     }
     
-    newTodayReps[enemy.exercise] += reps;
+    if (didExercise) {
+      newTodayReps[enemy.exercise] += reps;
+    }
+
+    const newTotalRepsByEx = { ...state.avatar.totalRepsByExercise };
+    if (didExercise) {
+      newTotalRepsByEx[enemy.exercise] = (newTotalRepsByEx[enemy.exercise] || 0) + reps;
+    }
+
+    // Use a background async call to save it to AsyncStorage
+    supabase.auth.getUser().then(({ data: userData }) => {
+      const uId = userData?.user?.id || 'guest';
+      AsyncStorage.setItem(`totalRepsByExercise_${uId}`, JSON.stringify(newTotalRepsByEx)).catch(() => {});
+    });
 
     return {
-      avatar: {
         ...state.avatar,
         coins,
         currentStreak,
         lastActiveDate,
         lastEnduranceDate,
-        totalReps: state.avatar.totalReps + reps,
+        lastDailyBountyDate: (won && didExercise && enemy.id.startsWith('daily_bounty_'))
+          ? todayStr
+          : state.avatar.lastDailyBountyDate,
+        totalReps: state.avatar.totalReps + (didExercise ? reps : 0),
+        totalRepsByExercise: newTotalRepsByEx,
         todayReps: newTodayReps,
         totalBattles: state.avatar.totalBattles + 1,
-        victories: state.avatar.victories + (won ? 1 : 0),
-        defeatedEnemies: won && !newDefeatedEnemies.includes(enemy.id)
+        victories: state.avatar.victories + (won && didExercise ? 1 : 0),
+        defeatedEnemies: won && didExercise && !newDefeatedEnemies.includes(enemy.id)
           ? [...newDefeatedEnemies, enemy.id]
           : newDefeatedEnemies,
-      }
     };
-  }),
+  },
 
   // ── Item actions ─────────────────────────────────────────────────────────
   loadInventory: async () => {
@@ -344,7 +378,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { data: userData } = await supabase.auth.getUser();
     if (!userData?.user) return { success: false, error: 'Not logged in' };
     
-    const skill = PASSIVE_SKILLS[skillId as any];
+    const skill = PASSIVE_SKILLS[skillId as keyof typeof PASSIVE_SKILLS];
     if (!skill) return { success: false, error: 'Skill not found' };
     
     const currentCoins = get().avatar.coins;
@@ -486,10 +520,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // STARTING PASSIVE BUFFS:
     // 1. STR (Strength) = -1 Rep Required for every 10 points (to a minimum of 1 rep)
     const strengthBonusReps = Math.floor(state.avatar.stats.strength / 10);
-    let effectiveReps = Math.max(1, enemy.repsRequired - strengthBonusReps);
+    let effectiveReps = enemy.repsRequired;
     
     // 2. STA (Stamina) = +1 Second to the timer per point in Stamina
-    let extraSeconds  = state.avatar.stats.stamina;
+    let extraSeconds = 0;
     
     // POTIONS: Deal direct damage to enemy at battle start
     let initialDamage = 0;
@@ -518,16 +552,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
   applyItemToCurrentBattle: (effect: CatalogItem) => set((state) => {
     if (!state.battle) return state;
     
-    let { effectiveReps, secondsRemaining } = state.battle;
+    let { totalDamageDealt, secondsRemaining, enemyHpRemaining } = state.battle;
     if (effect.item_type === 'potion') {
-      // Potions deal direct damage (reduce reps)
-      effectiveReps = Math.max(1, effectiveReps - effect.effect_value);
+      // Potions deal direct damage (effect_value * 10 damage)
+      const damage = effect.effect_value * 10;
+      totalDamageDealt += damage;
+      // Leave at least 1 HP so the player has to do at least 1 rep to win
+      enemyHpRemaining = Math.max(1, state.battle.enemy.health - totalDamageDealt);
     }
     
     return {
       battle: {
         ...state.battle,
-        effectiveReps,
+        totalDamageDealt,
+        enemyHpRemaining,
         secondsRemaining,
         activeEffect: effect,
       }
@@ -593,55 +631,78 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return { battle: { ...state.battle, secondsRemaining: newSecs } };
   }),
 
-  resolveBattle: (outcome) => {
-    const { battle, gainXp, boostStats, recordBattle } = get();
+    resolveBattle: async (outcome) => {
+    const { battle } = get();
     if (!battle) return;
-    
-    // Set the battle phase so PostBattleScreen can determine victory/defeat UI
+
+    // Step 1: set phase immediately for UI
     set((state) => ({
       battle: state.battle ? { ...state.battle, phase: outcome } : null
     }));
-    
-    if (outcome === 'victory') {
-      let finalXp = battle.enemy.xpReward;
-      
-      // Dynamic logic for Endurance Bosses
-      if (battle.enemy.isEndurance) {
-        // Base XP on number of reps completed in the timeframe
-        finalXp = battle.repsCompleted * 30; 
-      }
 
-      if (battle.activeEffect?.item_type === 'exp_boost') {
-        finalXp *= battle.activeEffect.effect_value;
-      }
-      
-      // ── ADRENALINE RUSH: 1.5x XP if 5 reps completed in under 15 seconds ──
-      const equippedSkills = get().avatar.equippedSkills;
-      if (equippedSkills.includes('adrenaline_rush')) {
-        // Check if any 5 reps were completed within 15 seconds
-        // We'll use a simple heuristic: if battle time < 15 seconds and reps >= 5
-        const battleDuration = battle.enemy.timeLimit - battle.secondsRemaining;
-        if (battle.repsCompleted >= 5 && battleDuration < 15) {
-          finalXp *= 1.5;
-        }
-      }
-      
-      gainXp(finalXp);
-      boostStats(battle.enemy.statBoosts as Partial<PlayerStats>);
-    }
+    // Step 2: compute all derived values from the current snapshot
+    const currentAvatar = get().avatar;
     const shieldActive = battle.activeEffect?.item_type === 'streak_restore';
-    recordBattle(
-      outcome === 'victory',
+    const didExercise = battle.repsCompleted > 0;
+    const eligibleVictory = outcome === 'victory' && didExercise;
+
+    // Step 3: run recordBattle to get the new avatar base (streak, coins, reps, defeatedEnemies)
+    const newAvatarState = get().recordBattle(
+      eligibleVictory,
       battle.repsCompleted,
       battle.enemy,
       shieldActive
     );
-    // Persist the latest avatar stats to Supabase in the background
-    get().syncProfile().catch(() => {});
+
+    // Step 4: compute XP gain on top
+    let finalXp = 0;
+    if (eligibleVictory) {
+      finalXp = battle.enemy.isEndurance
+        ? Math.round(battle.repsCompleted * (20 + currentAvatar.level * 1.5))
+        : battle.enemy.xpReward;
+
+      if (battle.activeEffect?.item_type === 'exp_boost') {
+        finalXp = Math.round(finalXp * battle.activeEffect.effect_value);
+      }
+
+      const equippedSkills = currentAvatar.equippedSkills;
+      if (equippedSkills.includes('adrenaline_rush')) {
+        const battleDuration = battle.enemy.timeLimit - battle.secondsRemaining;
+        if (battle.repsCompleted >= 5 && battleDuration < 15) {
+          finalXp = Math.round(finalXp * 1.5);
+        }
+      }
+    }
+
+    // Step 5: compute new XP + level from the newAvatarState base (not currentAvatar)
+    let newXp = newAvatarState.xp + finalXp;
+    let newLevel = newAvatarState.level;
+    while (newLevel < MAX_LEVEL && newXp >= XP_TABLE[newLevel + 1]) {
+      newLevel += 1;
+    }
+
+    // Step 6: recalculate stats based on final level and reps
+    const newStats = eligibleVictory
+      ? calculateStatGains(newAvatarState.totalRepsByExercise, newAvatarState.victories, newLevel)
+      : newAvatarState.stats;
+
+    // Step 7: single atomic set — no overwrites
+    set({
+      avatar: {
+        ...newAvatarState,
+        xp: newXp,
+        level: newLevel,
+        stats: newStats,
+      }
+    });
+
+    // Step 8: flush then sync
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await get().syncProfile().catch(() => {});
   },
 
   resetBattle: () => set({ battle: null }),
-  resetAvatar: () => set({ avatar: { name: 'Aethor', class: 'Iron Aspirant', level: 1, xp: 0, coins: 0, currentStreak: 0, lastActiveDate: null, lastEnduranceDate: null, claimedLevelRewards: [], stats: { strength: 0, agility: 0, stamina: 0 }, defeatedEnemies: [], totalReps: 0, todayReps: { date: '', push_up: 0, squat: 0, sit_up: 0, pull_up: 0 }, totalBattles: 0, victories: 0, purchasedSkins: [], equippedSkin: null } }),
+  resetAvatar: () => set({ avatar: { name: 'Aethor', class: 'Iron Aspirant', level: 1, xp: 0, coins: 0, currentStreak: 0, lastActiveDate: null, lastEnduranceDate: null, lastDailyBountyDate: null, claimedLevelRewards: [], stats: { strength: 0, agility: 0, stamina: 0 }, defeatedEnemies: [], totalReps: 0, totalRepsByExercise: { push_up: 0, squat: 0, sit_up: 0, pull_up: 0 }, todayReps: { date: '', push_up: 0, squat: 0, sit_up: 0, pull_up: 0 }, totalBattles: 0, victories: 0, purchasedSkins: [], equippedSkin: null, equippedSkills: [], purchasedSkills: [] } }),
   setAvatar: (avatarData) => set((state) => ({ avatar: { ...state.avatar, ...avatarData } })),
   setProfileNeedsName: (need) => set({ profileNeedsName: need }),
   setShowTutorial: (show) => set({ showTutorial: show }),
@@ -658,8 +719,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       let rewardAmount = 0;
       if (lastLoginReward !== todayStr) {
         showReward = true;
-        // Base 50 for guests since they have no streak state tracked locally yet
-        rewardAmount = 50;
+        // Base 75 for guests since they have no streak state tracked locally yet
+        rewardAmount = 75;
       }
       
       const storedClaimedLevelsGuestStr = await AsyncStorage.getItem('claimedLevelRewards_guest');
@@ -694,6 +755,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const storedEnduranceStr = await AsyncStorage.getItem(`lastEnduranceDate_${user.id}`);
     let loadedEnduranceDate = storedEnduranceStr ?? null;
 
+    const storedDailyBounty = await AsyncStorage.getItem(`lastDailyBountyDate_${user.id}`);
+    let loadedDailyBounty = data.last_daily_bounty_date ?? storedDailyBounty ?? null;
+
     const meta = user.user_metadata || {};
     let loadedSkins = meta.purchasedSkins;
     let needsSkinsMigration = false;
@@ -711,7 +775,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Load skills from metadata or AsyncStorage
     let loadedSkills = meta.purchasedSkills;
-    let loadedEquippedSkills = meta.equippedSkills;
+    let loadedEquippedSkills = Array.from(new Set(meta.equippedSkills as string[]));
     if (!loadedSkills) {
       const storedSkillsStr = await AsyncStorage.getItem(`purchasedSkills_${user.id}`);
       loadedSkills = storedSkillsStr ? JSON.parse(storedSkillsStr) : [];
@@ -741,14 +805,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
       loadedTodayReps = { date: todayStr, push_up: 0, squat: 0, sit_up: 0, pull_up: 0 };
     }
 
+    const storedTotalRepsByExerciseStr = await AsyncStorage.getItem(`totalRepsByExercise_${user.id}`);
+    let loadedTotalRepsByEx = storedTotalRepsByExerciseStr ? JSON.parse(storedTotalRepsByExerciseStr) : { push_up: 0, squat: 0, sit_up: 0, pull_up: 0 };
+
     // Daily Login Reward Check
     const lastLoginReward = await AsyncStorage.getItem(`lastLoginReward_${user.id}`);
     let showReward = false;
     let rewardAmount = 0;
     if (lastLoginReward !== todayStr) {
       showReward = true;
-      // Base 50 + 10 for every day in streak
-      rewardAmount = 50 + ((data.current_streak ?? 0) * 10);
+      // Base 75 + 15 for every day in streak, capped at 500
+      rewardAmount = Math.min(500, 75 + ((data.current_streak ?? 0) * 15));
     }
 
     // Auto-correct level based on loaded XP
@@ -760,18 +827,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
       needsSync = true;
     }
 
+    // Recompute stats
+    const recomputedStats = calculateStatGains(loadedTotalRepsByEx, data.victories ?? 0, actualLevel);
+
     set((state) => ({
       avatar: {
         ...state.avatar,
         name: data.name ?? state.avatar.name,
         level: actualLevel,
         xp: loadedXp,
-        stats: {
-          strength: data.str ?? 0,
-          agility: data.agi ?? 0,
-          stamina: data.sta ?? 0,
-        },
+        stats: recomputedStats,
         totalReps: data.total_reps ?? 0,
+        totalRepsByExercise: loadedTotalRepsByEx,
         todayReps: loadedTodayReps,
         totalBattles: data.battles ?? 0,
         victories: data.victories ?? 0,
@@ -779,6 +846,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         currentStreak: data.current_streak ?? 0,
         lastActiveDate: data.last_active_date ?? null,
         lastEnduranceDate: loadedEnduranceDate,
+        lastDailyBountyDate: loadedDailyBounty,
         claimedLevelRewards: loadedClaimedLevels,
         defeatedEnemies: loadedDefeatedEnemies,
         purchasedSkins: loadedSkins,
@@ -827,6 +895,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
           : AsyncStorage.removeItem(`equippedSkin_${user.id}`),
         state.lastEnduranceDate
           ? AsyncStorage.setItem(`lastEnduranceDate_${user.id}`, state.lastEnduranceDate)
+          : Promise.resolve(),
+        state.lastDailyBountyDate
+          ? AsyncStorage.setItem(`lastDailyBountyDate_${user.id}`, state.lastDailyBountyDate)
           : Promise.resolve()
       ]);
       
@@ -868,6 +939,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         coins: state.coins,
         current_streak: state.currentStreak,
         last_active_date: state.lastActiveDate,
+        last_daily_bounty_date: state.lastDailyBountyDate,
         claimed_level_rewards: state.claimedLevelRewards,
         birthday: state.birthday,
         sex: state.sex,

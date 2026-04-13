@@ -65,7 +65,7 @@ export function DailyBountyCard({ enemy, isCompleted, onPress }: DailyBountyCard
                     <View style={styles.statRow}>
                         <Ionicons name="fitness" size={20} color={AuthColors.navy} />
                         <Text style={styles.workoutText}>
-                            TARGET: {enemy.repsRequired} {exerciseLabel.toUpperCase()}S
+                            TARGET: {enemy.health} DMG ({exerciseLabel.toUpperCase()})
                         </Text>
                     </View>
                     

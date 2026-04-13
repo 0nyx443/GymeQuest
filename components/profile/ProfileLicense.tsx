@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, DimensionValue, Modal, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image, DimensionValue, Modal, TouchableOpacity, Alert } from 'react-native';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { useGameStore } from '@/store/gameStore';
+import { CoreAttributesModal } from '@/components/ui/CoreAttributesModal';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 // ── NEW: Added the dynamic image helper here too! ──
@@ -51,6 +52,7 @@ export function ProfileLicense() {
     };
 
     const [showDailyModal, setShowDailyModal] = useState(false);
+    const [showAttributesModal, setShowAttributesModal] = useState(false);
 
     const getTodayRepsData = () => {
       const today = new Date().toISOString().split('T')[0];
@@ -145,9 +147,17 @@ export function ProfileLicense() {
 
             {/* Core Attributes */}
             <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                    <MaterialCommunityIcons name="flash" size={20} color={AuthColors.crimson} />
-                    <Text style={styles.sectionTitle}>CORE ATTRIBUTES</Text>
+                <View style={[styles.sectionHeader, { justifyContent: 'space-between', alignItems: 'center' }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <MaterialCommunityIcons name="flash" size={20} color={AuthColors.crimson} />
+                        <Text style={styles.sectionTitle}>CORE ATTRIBUTES</Text>
+                    </View>
+                    <TouchableOpacity 
+                        style={{ padding: 4, backgroundColor: '#E2E8F0', borderRadius: 4 }}
+                        onPress={() => setShowAttributesModal(true)}
+                    >
+                        <MaterialCommunityIcons name="help-circle-outline" size={16} color="#475569" />
+                    </TouchableOpacity>
                 </View>
 
                 {/* STR */}
@@ -159,7 +169,7 @@ export function ProfileLicense() {
                     <View style={styles.statBarOuter}>
                         <View style={[styles.statBarInner, { width: getMilestoneData(avatar.stats.strength).percent, backgroundColor: AuthColors.crimson }]} />
                     </View>
-                    <Text style={styles.statDesc}>-1 required rep per 10 STR (Min: 1)</Text>
+                    
                 </View>
 
                 {/* AGI */}
@@ -171,7 +181,7 @@ export function ProfileLicense() {
                     <View style={styles.statBarOuter}>
                         <View style={[styles.statBarInner, { width: getMilestoneData(avatar.stats.agility).percent, backgroundColor: '#1DB8A0' }]} />
                     </View>
-                    <Text style={styles.statDesc}>+1% more coin drops per 1 AGI</Text>
+                    
                 </View>
 
                 {/* STA */}
@@ -183,7 +193,7 @@ export function ProfileLicense() {
                     <View style={styles.statBarOuter}>
                         <View style={[styles.statBarInner, { width: getMilestoneData(avatar.stats.stamina).percent, backgroundColor: '#2563EB' }]} />
                     </View>
-                    <Text style={styles.statDesc}>+1 sec combo timer per 1 STA</Text>
+                    
                 </View>
             </View>
 
@@ -218,6 +228,8 @@ export function ProfileLicense() {
                     </View>
                 </View>
             </View>
+
+            <CoreAttributesModal visible={showAttributesModal} onClose={() => setShowAttributesModal(false)} />
 
             <Modal
               visible={showDailyModal}
@@ -293,6 +305,9 @@ const styles = StyleSheet.create({
   modalLabel: { fontFamily: Fonts.vt323, fontSize: 16, color: '#3D494C' },
   modalDate: { fontFamily: Fonts.pixel, fontSize: 8, color: '#64748B', marginTop: 4 },
   modalReps: { fontFamily: Fonts.vt323, fontSize: 24, color: AuthColors.navy },
+  attrModalRow: { marginBottom: 12, backgroundColor: '#F8FAFC', borderWidth: 2, borderColor: '#CBD5E1', padding: 12 },
+  attrModalLabel: { fontFamily: Fonts.vt323, fontSize: 18, color: AuthColors.crimson, marginBottom: 4 },
+  attrModalDesc: { fontFamily: Fonts.vt323, fontSize: 16, color: '#3D494C' },
   modalBtn: { backgroundColor: AuthColors.navy, paddingVertical: 12, alignItems: 'center', marginTop: 12, borderWidth: 2, borderColor: '#FFFFFF' },
   modalBtnText: { fontFamily: Fonts.pixel, fontSize: 12, color: '#FFFFFF' },
   viewTodayBtn: { backgroundColor: AuthColors.navy, paddingVertical: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF' },

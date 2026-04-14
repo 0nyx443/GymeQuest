@@ -488,20 +488,7 @@ export default function CombatScreen() {
             <View style={styles.divThick} />
             <Text style={styles.mainDamageLbl}>DAMAGE</Text>
           </View>
-          <View style={styles.repsLeftCard}>
-            <Text style={styles.repsLeftVal}>
-              {Math.round(battle.damagePerRep)}
-            </Text>
-            <View style={styles.divThin} />
-            <Text style={styles.repsLeftLbl}>DMG/REP</Text>
-          </View>
-          <View style={styles.repsLeftCard}>
-            <Text style={styles.repsLeftVal}>
-              {Math.round(battle.damagePerRep)}
-            </Text>
-            <View style={styles.divThin} />
-            <Text style={styles.repsLeftLbl}>DMG/REP</Text>
-          </View>
+          
         </View>
         <View style={[styles.repsLeftCard, { alignSelf: 'center', minWidth: 120 }]}>
           <Text style={styles.repsLeftVal}>

@@ -20,6 +20,23 @@ import { AvatarStage } from '@/components/hub/AvatarStage';
 import { ExpBar } from '@/components/hub/ExpBar';
 import { DailyBountyCard } from '@/components/hub/DailyBountyCard';
 
+const getMilestoneImage = (level: number, equippedSkin?: string | null) => {
+  if (equippedSkin === 'm_series') return require('@/assets/images/m_avatar.png');
+  if (equippedSkin === 'omni_man') return require('@/assets/images/Omni-Man_profile.png');
+  if (equippedSkin === 'atom_eve') return require('@/assets/images/Atom-Eve_profile.png');
+  if (level >= 50) return require('@/assets/images/legend_avatar.png');
+  if (level >= 25) return require('@/assets/images/champion_avatar.png');
+  if (level >= 10) return require('@/assets/images/challenger_avatar.png');
+  return require('@/assets/images/rookie_avatar.png');
+};
+
+const getRankName = (level: number) => {
+  if (level >= 50) return 'LEGEND';
+  if (level >= 25) return 'CHAMPION';
+  if (level >= 10) return 'CHALLENGER';
+  return 'ROOKIE';
+};
+
 function getThisMondaysMidnight(): number {
   const d = new Date();
   const day = d.getDay();
@@ -53,14 +70,15 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
   const [weeklyTimeLeft, setWeeklyTimeLeft] = useState('');
   const [rewardAnimVisible, setRewardAnimVisible] = useState(false);
   const [exerciseModalVisible, setExerciseModalVisible] = useState(false);
+  const [statsHelpVisible, setStatsHelpVisible] = useState(false);
   const rewardScaleAnim = useRef(new Animated.Value(0)).current;
 
   const _claimReward = useCallback(() => {
     claimDailyReward().then(() => {
       setRewardAnimVisible(true);
       Animated.sequence([
-        Animated.spring(rewardScaleAnim, { toValue: 1.2, friction: 3, useNativeDriver: true }),
-        Animated.timing(rewardScaleAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
+        Animated.timing(rewardScaleAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.delay(1200),
         Animated.timing(rewardScaleAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
       ]).start(() => setRewardAnimVisible(false));
     });
@@ -182,6 +200,14 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
     });
   }, [onQuestsPress]);
 
+  let hasLevelReward = false;
+  for (let i = 2; i <= avatar.level; i++) {
+      if (!avatar.claimedLevelRewards?.includes(i)) {
+          hasLevelReward = true;
+          break;
+      }
+  }
+
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor={AuthColors.bg} />
@@ -192,25 +218,51 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
       >
         {/* ── Header ── */}
         <View style={styles.header}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.headerSub} numberOfLines={1}>WELCOME BACK,</Text>
-            <Text style={styles.headerName} numberOfLines={1} ellipsizeMode="tail">{(avatar.name || 'ADVENTURER').toUpperCase()}</Text>
+          <View style={styles.headerProfile}>
+            <View style={styles.headerPortraitBox}>
+              <Image
+                source={getMilestoneImage(avatar.level, avatar.equippedSkin)}
+                style={styles.headerPortrait}
+                resizeMode="contain"
+              />
+              <View style={styles.headerLvlBadge}>
+                <Text style={styles.headerLvlText}>LVL {avatar.level}</Text>
+              </View>
+            </View>
+            <View style={styles.headerInfo}>
+              <Text style={styles.headerSub} numberOfLines={1}>NAME</Text>
+              <Text style={styles.headerName} numberOfLines={1} ellipsizeMode="tail">{(avatar.name || 'ADVENTURER').toUpperCase()}</Text>
+              <Text style={[styles.headerSub, { marginTop: 4 }]} numberOfLines={1}>RANK</Text>
+              <View style={styles.headerRankBadge}>
+                <Text style={styles.headerRankText}>{getRankName(avatar.level)}</Text>
+              </View>
+            </View>
           </View>
           <View style={styles.headerBadges}>
             {/* Streak Badge */}
             {avatar.currentStreak > 0 && (
               <View style={styles.streakBadge}>
-                <MaterialCommunityIcons name="fire" size={14} color={AuthColors.goldBorder} />
+                <MaterialCommunityIcons name="fire" size={16} color={AuthColors.goldBorder} />
                 <Text style={styles.streakBadgeNum}>{avatar.currentStreak}</Text>
-                <Text style={styles.streakBadgeLbl}>STREAK</Text>
               </View>
             )}
 
             {/* Coin Badge */}
+            <View style={{ gap: 6 }}>
               <View style={styles.coinBadge}>
-                <MaterialCommunityIcons name="circle-multiple-outline" size={20} color="#FBBF24" />
+                <MaterialCommunityIcons name="circle-multiple-outline" size={16} color="#FBBF24" />
                 <Text style={styles.coinText}>{avatar.coins.toLocaleString()}</Text>
               </View>
+              
+              {/* Rewards Trail Button */}
+              <TouchableOpacity 
+                style={[styles.rewardsTrailBtn, !hasLevelReward && styles.rewardsTrailBtnInactive]} 
+                onPress={() => router.push('/rewards')}
+              >
+                <MaterialCommunityIcons name="gift" size={12} color={hasLevelReward ? '#FFF' : AuthColors.navy} />
+                <Text style={[styles.rewardsTrailText, !hasLevelReward && styles.rewardsTrailTextInactive]}>REWARDS</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -247,8 +299,37 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
           </View>
         </View>
 
+        {/* ── Stats Row ── */}
+        <View style={styles.statsSection}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.sectionTitle}>STATS</Text>
+              <TouchableOpacity onPress={() => setStatsHelpVisible(true)} style={{ marginLeft: 8, marginTop: -4 }} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
+                <MaterialCommunityIcons name="help-circle-outline" size={20} color={AuthColors.navy} />
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={styles.statsRow}>
+            {[
+              { label: 'STR', value: avatar.stats?.strength ?? 0 },
+              { label: 'AGI', value: avatar.stats?.agility  ?? 0 },
+              { label: 'STA', value: avatar.stats?.stamina  ?? 0 },
+            ].map((s) => (
+              <View key={s.label} style={styles.statBox}>
+                <Text style={styles.statValue}>{s.value}</Text>
+                <Text style={styles.statLabel}>{s.label}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={{ marginTop: 10, padding: 12, backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: AuthColors.navy, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontFamily: Fonts.pixel, fontSize: 11, color: AuthColors.crimson, textAlign: 'center' }}>
+              BASE ATK: {Math.round(10 * (1 + ((avatar.stats?.strength ?? 0) + (avatar.stats?.agility ?? 0) + (avatar.stats?.stamina ?? 0)) / 100))} DMG / REP
+            </Text>
+          </View>
+        </View>
+
         {/* ── Combat & Activities ── */}
-        <Text style={styles.sectionTitle}>⚔️ COMBAT</Text>
+        <Text style={styles.sectionTitle}>COMBAT</Text>
 
         {/* ── CTA Buttons ── */}
         <View style={styles.ctaRow}>
@@ -330,44 +411,48 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
           />
         )}
 
-        {/* ── Stats Row ── */}
-        <View style={styles.statsSection}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={styles.sectionTitle}>📊 STATS</Text>
-          </View>
-          <View style={styles.statsRow}>
-            {[
-              { label: 'STR', value: avatar.stats?.strength ?? 10 },
-              { label: 'AGI', value: avatar.stats?.agility  ?? 10 },
-              { label: 'STA', value: avatar.stats?.stamina  ?? 10 },
-            ].map((s) => (
-              <View key={s.label} style={styles.statBox}>
-                <Text style={styles.statValue}>{s.value}</Text>
-                <Text style={styles.statLabel}>{s.label}</Text>
-              </View>
-            ))}
-          </View>
-          <View style={{ marginTop: 10, padding: 12, backgroundColor: '#1E293B', borderWidth: 3, borderColor: AuthColors.navy, alignItems: 'center' }}>
-            <Text style={{ fontFamily: Fonts.pixel, fontSize: 16, color: '#00C9A7' }}>
-              BASE ATK: {Math.round(10 * (1 + ((avatar.stats?.strength ?? 10) + (avatar.stats?.agility ?? 10) + (avatar.stats?.stamina ?? 10)) / 100))} DMG / REP
-            </Text>
-            <Text style={{ fontFamily: Fonts.vt323, fontSize: 14, color: '#94A3B8', marginTop: 4, letterSpacing: 1 }}>
-              Trained attributes multiply your strike power!
-            </Text>
-          </View>
-        </View>
       </ScrollView>
 
-      
-      
+      {/* ── Stats Info Overlay ── */}
+      {statsHelpVisible && (
+        <View style={[StyleSheet.absoluteFill, styles.modalOverlay]} pointerEvents="auto">
+          <View style={styles.statsHelpBox}>
+            <Text style={styles.statsHelpTitle}>HOW STATS WORK</Text>
+            
+            <View style={styles.statsHelpRow}>
+              <Text style={styles.statsHelpLabel}>STR (Strength)</Text>
+              <Text style={styles.statsHelpDesc}>Gained from upper body Workouts. Boosts BASE ATK.</Text>
+            </View>
+            
+            <View style={styles.statsHelpRow}>
+              <Text style={styles.statsHelpLabel}>AGI (Agility)</Text>
+              <Text style={styles.statsHelpDesc}>Gained from leg workouts / cardio. Boosts BASE ATK.</Text>
+            </View>
+            
+            <View style={styles.statsHelpRow}>
+              <Text style={styles.statsHelpLabel}>STA (Stamina)</Text>
+              <Text style={styles.statsHelpDesc}>Gained from core routines. Essential for fights. Boosts BASE ATK.</Text>
+            </View>
+
+            <View style={styles.statsHelpRow}>
+              <Text style={styles.statsHelpLabel}>BASE ATK</Text>
+              <Text style={styles.statsHelpDesc}>Total combined stats modifier. Multiplies damage dealt per rep!</Text>
+            </View>
+
+            <TouchableOpacity style={styles.statsHelpCloseBtn} onPress={() => setStatsHelpVisible(false)} activeOpacity={0.8}>
+              <Text style={styles.statsHelpCloseTxt}>GOT IT</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* ── Reward Claim Animation Overlay ── */}
       {rewardAnimVisible && (
-        <View style={[styles.rewardAnimOverlay, { zIndex: 100, elevation: 100 }]}>
+        <View style={styles.rewardAnimOverlay} pointerEvents="none">
           <Animated.View style={[styles.rewardAnimBox, { transform: [{ scale: rewardScaleAnim }] }]}>
-            <MaterialCommunityIcons name="star-four-points" size={80} color="#FFD700" />
-            <Text style={styles.rewardAnimText}>+{dailyRewardCoins} Coins</Text>
-            <Text style={styles.rewardAnimSubtext}>Daily Reward Claimed!</Text>
+            <MaterialCommunityIcons name="party-popper" size={48} color="#FFD700" />
+            <Text style={styles.rewardAnimText}>SUCCESS!</Text>
+            <Text style={styles.rewardAnimSubtext}>CLAIMED {dailyRewardCoins} COINS</Text>
           </Animated.View>
         </View>
       )}
@@ -439,53 +524,136 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  headerProfile: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: 12,
+    flex: 1,
+    minWidth: 0,
+  },
+  headerPortraitBox: {
+    width: 65,
+    height: 65,
+    backgroundColor: '#C6E8F8',
+    borderWidth: 3,
+    borderColor: AuthColors.navy,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  headerPortrait: { width: '100%', height: '100%' },
+  headerLvlBadge: {
+    position: 'absolute',
+    bottom: -3,
+    right: -3,
+    backgroundColor: AuthColors.crimson,
+    borderTopWidth: 2,
+    borderLeftWidth: 2,
+    borderColor: AuthColors.navy,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  headerLvlText: { fontFamily: Fonts.pixel, fontSize: 8, color: '#FFFFFF' },
+  headerInfo: {
+    flex: 1,
   },
   headerSub: {
     fontFamily: Fonts.vt323,
-    fontSize: 12,
+    fontSize: 10,
     color: '#8D99AE',
     letterSpacing: 2,
+    lineHeight: 12,
   },
   headerName: {
     fontFamily: Fonts.pixel,
     fontSize: 14,
     color: AuthColors.navy,
+  },
+  headerRankBadge: {
+    backgroundColor: AuthColors.navy,
+    borderWidth: 2,
+    borderColor: AuthColors.crimson,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    alignSelf: 'flex-start',
     marginTop: 2,
+  },
+  headerRankText: {
+    fontFamily: Fonts.pixel,
+    fontSize: 9,
+    color: '#FFFFFF',
   },
   headerBadges: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    flexShrink: 0,
-    gap: 8,
+    gap: 6,
   },
   streakBadge: {
+    flexDirection: 'row',
     backgroundColor: AuthColors.white,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderWidth: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderWidth: 2,
     borderColor: AuthColors.navy,
     shadowColor: AuthColors.navy,
-    shadowOffset: { width: 3, height: 3 },
+    shadowOffset: { width: 2, height: 2 },
     shadowOpacity: 1,
     shadowRadius: 0,
-    elevation: 5,
+    elevation: 3,
     alignItems: 'center',
-    minWidth: 44,
+    gap: 4,
   },
   streakBadgeNum: {
     fontFamily: Fonts.pixel,
-    fontSize: 14,
+    fontSize: 12,
     color: AuthColors.crimson,
-    marginTop: 2,
   },
-  streakBadgeLbl: {
-    fontFamily: Fonts.vt323,
-    fontSize: 10,
-    color: AuthColors.crimson,
-    letterSpacing: 0,
-    marginTop: 1,
+  coinBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderWidth: 2,
+    borderColor: AuthColors.navy,
+    shadowColor: AuthColors.navy,
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 3,
+    gap: 4,
+  },
+  coinText: { fontFamily: Fonts.pixel, fontSize: 12, color: '#FBBF24' },  rewardsTrailBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: AuthColors.gold,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderWidth: 2,
+    borderColor: AuthColors.navy,
+    shadowColor: AuthColors.navy,
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 3,
+    gap: 4,
+    justifyContent: 'center',
+  },
+  rewardsTrailText: {
+    fontFamily: Fonts.pixel,
+    fontSize: 8,
+    color: '#FFF',
+    letterSpacing: 1,
+  },
+  rewardsTrailBtnInactive: {
+    backgroundColor: '#E2E8F0',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  rewardsTrailTextInactive: {
+    color: AuthColors.navy,
   },
   levelBadge: {
     backgroundColor: AuthColors.navy,
@@ -512,9 +680,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     lineHeight: 20,
   },
-  coinBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E293B', paddingHorizontal: 12, paddingVertical: 8, borderWidth: 2, borderColor: AuthColors.navy, gap: 6 },
-  
-  coinText: { fontFamily: Fonts.pixel, fontSize: 14, color: '#FBBF24' },
 
   // Boss Battle
   bossBattleCard: {
@@ -725,18 +890,65 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
     marginTop: 2,
   },
+  
+  // Stats Help Modal
+  statsHelpBox: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 4,
+    borderColor: AuthColors.navy,
+    padding: 24,
+    width: '90%',
+    shadowColor: AuthColors.navy,
+    shadowOffset: { width: 6, height: 6 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 5,
+  },
+  statsHelpTitle: {
+    fontFamily: Fonts.pixel,
+    fontSize: 16,
+    color: AuthColors.crimson,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  statsHelpRow: {
+    marginBottom: 16,
+  },
+  statsHelpLabel: {
+    fontFamily: Fonts.pixel,
+    fontSize: 12,
+    color: AuthColors.navy,
+    marginBottom: 4,
+  },
+  statsHelpDesc: {
+    fontFamily: Fonts.vt323,
+    fontSize: 16,
+    color: '#64748B',
+    lineHeight: 20,
+  },
+  statsHelpCloseBtn: {
+    backgroundColor: AuthColors.navy,
+    marginTop: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: AuthColors.navy,
+  },
+  statsHelpCloseTxt: {
+    fontFamily: Fonts.pixel,
+    fontSize: 12,
+    color: '#FFFFFF',
+  },
     
   // Modals
   modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+    zIndex: 1000,
+    elevation: 1000,
   },
   modalContent: {
     backgroundColor: "#FFFFFF",
@@ -826,32 +1038,37 @@ const styles = StyleSheet.create({
   // Reward Anim
   rewardAnimOverlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 1000,
+    elevation: 1000,
   },
   rewardAnimBox: {
-    backgroundColor: "#1E293B",
+    backgroundColor: '#FFE169',
+    paddingVertical: 24,
+    paddingHorizontal: 32,
     borderWidth: 4,
-    borderColor: "#FFD700",
-    borderRadius: 16,
-    alignItems: "center",
-    padding: 30,
-    shadowColor: "#FFD700",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
+    borderColor: AuthColors.navy,
+    alignItems: 'center',
+    shadowColor: AuthColors.navy,
+    shadowOffset: { width: 6, height: 6 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 6,
   },
   rewardAnimText: {
-    fontFamily: Fonts.mono,
-    fontSize: 24,
-    color: "#FFD700",
-    marginTop: 16,
+    fontFamily: Fonts.pixel,
+    fontSize: 20,
+    color: AuthColors.navy,
+    marginTop: 12,
+    letterSpacing: 2,
   },
   rewardAnimSubtext: {
-    fontFamily: Fonts.ui,
-    fontSize: 14,
-    color: "#FFF",
-    marginTop: 8,
+    fontFamily: Fonts.vt323,
+    fontSize: 16,
+    color: AuthColors.navy,
+    marginTop: 4,
+    letterSpacing: 2,
   },
 });

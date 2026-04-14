@@ -29,18 +29,8 @@ export function ExpBar({ currentXp, nextLevelXp, progress, level }: ExpBarProps)
         <View style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.xpText}>XP: {currentXp} / {nextLevelXp}</Text>
-                
-                <View style={styles.rightSection}>
-                    <TouchableOpacity 
-                        style={[styles.rewardBtn, hasLevelReward && styles.rewardBtnActive]} 
-                        onPress={() => router.push('/rewards')}
-                    >
-                        <MaterialCommunityIcons name="gift" size={12} color={hasLevelReward ? '#FFF' : AuthColors.navy} />
-                        <Text style={[styles.rewardBtnText, hasLevelReward && styles.rewardBtnTextActive]}>
-                            {hasLevelReward ? 'REWARDS!' : 'REWARDS'}
-                        </Text>
-                    </TouchableOpacity>
 
+                <View style={styles.rightSection}>
                     {level !== undefined && (
                         <Text style={styles.levelText}>LV {level}</Text>
                     )}

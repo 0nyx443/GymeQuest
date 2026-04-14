@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthColors, Fonts } from '@/constants/theme';
@@ -55,10 +56,7 @@ export default function TutorialScreen() {
               <Text style={ts.tagText}>STEP 1</Text>
             </View>
             <View style={ts.imageMargin}>
-              <View style={[ts.imageBox, { backgroundColor: '#D8F2FF' }]}>
-                {/* Floating placeholder icon */}
-                <View style={{ width: 37, height: 55, backgroundColor: '#123441', opacity: 0.3 }} />
-              </View>
+              <Image source={require('../assets/images/step1.png')} style={ts.imageBox} resizeMode="cover" />
             </View>
             <View style={ts.textContent}>
               <Text style={ts.heading4}>THE SETUP</Text>
@@ -72,9 +70,7 @@ export default function TutorialScreen() {
               <Text style={ts.tagText}>STEP 2</Text>
             </View>
             <View style={ts.imageMargin}>
-              <View style={[ts.imageBox, { backgroundColor: '#8CF5E4' }]}>
-                <View style={{ width: 50, height: 40, backgroundColor: '#006A60', opacity: 0.3 }} />
-              </View>
+              <Image source={require('../assets/images/step2.png')} style={ts.imageBox} resizeMode="cover" />
             </View>
             <View style={ts.textContent}>
               <Text style={ts.heading4}>THE COMBAT</Text>
@@ -88,9 +84,7 @@ export default function TutorialScreen() {
               <Text style={ts.tagText}>STEP 3</Text>
             </View>
             <View style={ts.imageMargin}>
-              <View style={[ts.imageBox, { backgroundColor: '#DAB65E' }]}>
-                <View style={{ width: 45, height: 45, backgroundColor: '#765A05', opacity: 0.3 }} />
-              </View>
+              <Image source={require('../assets/images/step3.png')} style={ts.imageBox} resizeMode="cover" />
             </View>
             <View style={ts.textContent}>
               <Text style={ts.heading4}>THE REWARD</Text>

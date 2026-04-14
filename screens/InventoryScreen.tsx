@@ -313,7 +313,7 @@ export default function InventoryScreen() {
           {consumables.length > 0 && (
              <View style={styles.sectionContainer}>
                 <View style={styles.sectionHeader}>
-                   <Text style={styles.sectionTitle}>🎒 CONSUMABLES</Text>
+                   <Text style={styles.sectionTitle}>CONSUMABLES</Text>
                 </View>
                 <View style={styles.gridContainer}>
                    {consumables.map((item, i) => renderConsumableCard(item, i))}
@@ -325,7 +325,7 @@ export default function InventoryScreen() {
              <View style={styles.sectionContainer}>
                 <View style={styles.sectionHeader}>
                    <View style={styles.sectionTitleRow}>
-                     <Text style={styles.sectionTitle}>⚡ PASSIVE SKILLS</Text>
+                     <Text style={styles.sectionTitle}>PASSIVE SKILLS</Text>
                      <Text style={styles.equippedCount}>{validEquippedSkills.length}/{maxSkills} Equipped</Text>
                    </View>
                 </View>
@@ -338,7 +338,7 @@ export default function InventoryScreen() {
           {skins.length > 0 && (
              <View style={styles.sectionContainer}>
                 <View style={styles.sectionHeader}>
-                   <Text style={styles.sectionTitle}>👔 COSMETICS</Text>
+                   <Text style={styles.sectionTitle}>COSMETICS</Text>
                 </View>
                 {skins.map((item, i) => renderCosmeticCard(item, i))}
              </View>

@@ -400,7 +400,6 @@ export default function GuildScreen() {
             />
           )}
         >
-          <View style={styles.emptyIconPlaceholder} />
 
           <Text style={styles.emptyTitle}>LONE WOLF?</Text>
           <Text style={styles.emptySubtitle}>
@@ -568,24 +567,9 @@ export default function GuildScreen() {
         {screenError ? <Text style={styles.inlineErrorText}>{screenError}</Text> : null}
 
         <View style={styles.guildBanner}>
-          <View style={styles.emblemContainer}>
-            <View style={styles.emblemIconMain} />
-            <View style={styles.emblemBadge} />
-          </View>
+          <Text style={[styles.guildName, { color: AuthColors.crimson }]}>{guild.name.toUpperCase()}</Text>
 
-          <Text style={styles.guildName}>{guild.name}</Text>
-
-          <TouchableOpacity
-            style={[styles.secondaryButton, { marginTop: 16, backgroundColor: AuthColors.crimson, borderColor: AuthColors.crimson }]}
-            onPress={() => {
-              handleLeaveGuild();
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.secondaryButtonText, { color: AuthColors.white }]}>LEAVE GUILD</Text>
-          </TouchableOpacity>
-
-          <View style={styles.guildStatsRow}>
+          <View style={[styles.guildStatsRow, { marginTop: 8 }]}>
             <View style={styles.statPill}>
               <Text style={styles.statPillText}>LVL {guild.level}</Text>
             </View>
@@ -596,6 +580,16 @@ export default function GuildScreen() {
               <Text style={styles.statPillText}>{(myRole ?? 'member').toUpperCase() === 'OWNER' ? 'LEADER' : (myRole ?? 'member').toUpperCase()}</Text>
             </View>
           </View>
+
+          <TouchableOpacity
+            style={[styles.secondaryButton, { marginTop: 16, backgroundColor: AuthColors.crimson, borderColor: AuthColors.crimson, height: 32, alignSelf: 'center', paddingVertical: 0 }]}
+            onPress={() => {
+              handleLeaveGuild();
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.secondaryButtonText, { color: AuthColors.white, fontSize: 12 }]}>LEAVE GUILD</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.progressSection}>

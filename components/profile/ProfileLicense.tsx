@@ -126,7 +126,7 @@ export function ProfileLicense() {
                         <Text style={styles.traitLabel}>BIRTHDAY</Text>
                         <Text style={styles.traitValue}>
                             {avatar.birthday 
-                                ? `${avatar.birthday}\n(${getAge(avatar.birthday) ?? '?'} YRS)` 
+                                ? `${avatar.birthday}\n(${getAge(avatar.birthday) ?? '?'} YRS OLD)` 
                                 : "?"}
                         </Text>
                     </View>

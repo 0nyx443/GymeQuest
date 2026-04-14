@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Modal, Pressable, Animated } from 'react-native';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { useGameStore } from '@/store/gameStore';
 import { MAX_LEVEL } from '@/constants/game';
@@ -20,6 +20,11 @@ export default function RewardsScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const [selectedSkill, setSelectedSkill] = useState<PassiveSkill | null>(null);
 
+  // Animation values
+  const [rewardAnimVisible, setRewardAnimVisible] = useState(false);
+  const [rewardMessage, setRewardMessage] = useState({ title: '', sub: '' });
+  const rewardScaleAnim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     // Small timeout ensures layout is computed before scrolling
     const timer = setTimeout(() => {
@@ -31,6 +36,29 @@ export default function RewardsScreen() {
   const handleClaim = async (level: number) => {
     if (level <= avatar.level && !avatar.claimedLevelRewards?.includes(level)) {
       await claimLevelReward(level);
+
+      const rewardCols = level === 1 ? 0 : level * 50;
+      const unlockedSkill = Object.values(PASSIVE_SKILLS).find((s: any) => s.unlockLevel === level);
+      let slotUpgrade = '';
+      if (level === 10) slotUpgrade = '2nd Skill Slot';
+      if (level === 20) slotUpgrade = '3rd Skill Slot';
+
+      let subMsg = '';
+      if (rewardCols > 0) subMsg += `CLAIMED ${rewardCols} COINS\n`;
+      if (unlockedSkill) subMsg += `${unlockedSkill.name.toUpperCase()} SKILL IN INVENTORY\n`;
+      if (slotUpgrade) subMsg += `${slotUpgrade.toUpperCase()} APPLIED\n`;
+
+      setRewardMessage({
+        title: 'SUCCESS!',
+        sub: subMsg.trim(),
+      });
+
+      setRewardAnimVisible(true);
+      Animated.sequence([
+        Animated.timing(rewardScaleAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.delay(1800),
+        Animated.timing(rewardScaleAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]).start(() => setRewardAnimVisible(false));
     }
   };
 
@@ -165,6 +193,17 @@ export default function RewardsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Cool Reward Animation Overlay */}
+      {rewardAnimVisible && (
+        <View style={styles.rewardAnimOverlay} pointerEvents="none">
+          <Animated.View style={[styles.rewardAnimBox, { transform: [{ scale: rewardScaleAnim }] }]}>
+            <MaterialCommunityIcons name="party-popper" size={48} color="#FFD700" />
+            <Text style={styles.rewardAnimText}>{rewardMessage.title}</Text>
+            <Text style={styles.rewardAnimSubtext}>{rewardMessage.sub}</Text>
+          </Animated.View>
+        </View>
+      )}
     </View>
   );
 }
@@ -331,4 +370,43 @@ const styles = StyleSheet.create({
   modalDesc: { fontFamily: Fonts.vt323, fontSize: 18, color: AuthColors.textDark, lineHeight: 24, marginBottom: 16 },
   modalBadge: { alignSelf: 'flex-start', backgroundColor: AuthColors.tealLink, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 2, borderColor: AuthColors.navy },
   modalBadgeText: { fontFamily: Fonts.pixel, fontSize: 10, color: '#FFF' },
+
+  // Reward Anim
+  rewardAnimOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 1000,
+    elevation: 1000,
+  },
+  rewardAnimBox: {
+    backgroundColor: '#FFE169',
+    paddingVertical: 24,
+    paddingHorizontal: 32,
+    borderWidth: 4,
+    borderColor: AuthColors.navy,
+    alignItems: 'center',
+    shadowColor: AuthColors.navy,
+    shadowOffset: { width: 6, height: 6 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 6,
+  },
+  rewardAnimText: {
+    fontFamily: Fonts.pixel,
+    fontSize: 20,
+    color: AuthColors.navy,
+    marginTop: 12,
+    letterSpacing: 2,
+    textAlign: 'center',
+  },
+  rewardAnimSubtext: {
+    fontFamily: Fonts.vt323,
+    fontSize: 16,
+    color: AuthColors.navy,
+    marginTop: 8,
+    letterSpacing: 2,
+    textAlign: 'center',
+  },
 });

@@ -31,6 +31,8 @@ export interface AvatarState {
   equippedSkin: string | null;
   purchasedSkills: string[];
   equippedSkills: string[];
+  dailyPurchases: { date: string; counts: Record<string, number> };
+  weeklyPurchases: { weekStart: string; counts: Record<string, number> };
   totalReps: number;
   totalRepsByExercise: { push_up: number; squat: number; sit_up: number; pull_up: number };
   todayReps: { date: string } & Record<ExerciseType, number>; // For Today's reps
@@ -79,7 +81,7 @@ interface GameStore {
 
   // Item actions
   loadInventory: () => Promise<void>;
-  purchaseItem: (item: CatalogItem) => Promise<{ success: boolean; error?: string }>;
+  purchaseItem: (item: CatalogItem, quantity?: number) => Promise<{ success: boolean; error?: string }>;
   purchaseSkill: (skillId: string) => Promise<{ success: boolean; error?: string }>;
   equipSkin: (skinId: string | null) => void;
   queueItemEffect: (effect: CatalogItem) => void;
@@ -119,8 +121,9 @@ function xpProgress(xp: number, level: number): number {
  * Calculate damage per rep based on player stats
  * Formula: 10 * (1 + (strength + agility + stamina) / 100)
  */
-function calculateDamagePerRep(stats: PlayerStats): number {
-  const statSum = Number(stats.strength) + Number(stats.agility) + Number(stats.stamina);
+function calculateDamagePerRep(stats?: PlayerStats): number {
+  if (!stats) return 10;
+  const statSum = Number(stats.strength || 0) + Number(stats.agility || 0) + Number(stats.stamina || 0);
   return 10 * (1 + statSum / 100);
 }
 
@@ -158,6 +161,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     equippedSkin: null,
     purchasedSkills: [],
     equippedSkills: [],
+    dailyPurchases: { date: '', counts: {} },
+    weeklyPurchases: { weekStart: '', counts: {} },
     totalReps: 0,
     totalRepsByExercise: { push_up: 0, squat: 0, sit_up: 0, pull_up: 0 },
     todayReps: { date: '', push_up: 0, squat: 0, sit_up: 0, pull_up: 0 },
@@ -331,12 +336,43 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ inventory: rows });
   },
 
-  purchaseItem: async (item) => {
+  purchaseItem: async (item, quantity = 1) => {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData?.user) return { success: false, error: 'Not logged in' };
     const currentCoins = get().avatar.coins;
-    const result = await dbPurchaseItem(userData.user.id, item, currentCoins);
+    
+    // Check limits
+    const todayStr = new Date().toISOString().split('T')[0];
+    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - d.getDay());
+    const weekStartStr = d.toISOString().split('T')[0];
+    const stateDaily = get().avatar.dailyPurchases;
+    const stateWeekly = get().avatar.weeklyPurchases;
+    
+    let dailyKey = stateDaily.date === todayStr ? stateDaily : { date: todayStr, counts: {} };
+    let weeklyKey = stateWeekly.weekStart === weekStartStr ? stateWeekly : { weekStart: weekStartStr, counts: {} };
+
+    const dailyCount = dailyKey.counts[item.id] || 0;
+    const weeklyCount = weeklyKey.counts[item.id] || 0;
+    const itemName = item.name.toLowerCase();
+
+    if (itemName.includes('small potion') && dailyCount + quantity > 5) {
+      return { success: false, error: `Daily limit reached (5/5). You can't buy ${quantity} more.` };
+    }
+    if (itemName.includes('double exp') && dailyCount + quantity > 2) {
+      return { success: false, error: `Daily limit reached (2/2). You can't buy ${quantity} more.` };
+    }
+    if (itemName.includes('large potion') && dailyCount + quantity > 3) {
+      return { success: false, error: `Daily limit reached (3/3). You can't buy ${quantity} more.` };
+    }
+    if (itemName.includes('streak saver') && weeklyCount + quantity > 1) {
+      return { success: false, error: `Weekly limit reached (1/1). You can't buy ${quantity} more.` };
+    }
+
+    const result = await dbPurchaseItem(userData.user.id, item, currentCoins, quantity);
     if (result.success) {
+      const newDailyCounts = { ...dailyKey.counts, [item.id]: dailyCount + quantity };
+      const newWeeklyCounts = { ...weeklyKey.counts, [item.id]: weeklyCount + quantity };
+
       // Update local coins immediately so UI reflects without refetch
       if (item.item_type === 'skin' && item.skin_id) {
         set((state) => ({
@@ -358,17 +394,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
         get().syncProfile();
       } else {
         set((state) => ({
-          avatar: { ...state.avatar, coins: result.newCoins },
+          avatar: { 
+            ...state.avatar, 
+            coins: result.newCoins,
+            dailyPurchases: { date: todayStr, counts: newDailyCounts },
+            weeklyPurchases: { weekStart: weekStartStr, counts: newWeeklyCounts }
+          },
           inventory: (() => {
             const existing = state.inventory.find((r) => r.item_id === item.id);
             if (existing) {
               return state.inventory.map((r) =>
-                r.item_id === item.id ? { ...r, quantity: r.quantity + 1 } : r
+                r.item_id === item.id ? { ...r, quantity: r.quantity + quantity } : r
               );
             }
-            return [...state.inventory, { item_id: item.id, quantity: 1 }];
+            return [...state.inventory, { item_id: item.id, quantity }];
           })(),
         }));
+        get().syncProfile();
       }
     }
     return { success: result.success, error: result.error };
@@ -702,7 +744,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   resetBattle: () => set({ battle: null }),
-  resetAvatar: () => set({ avatar: { name: 'Aethor', class: 'Iron Aspirant', level: 1, xp: 0, coins: 0, currentStreak: 0, lastActiveDate: null, lastEnduranceDate: null, lastDailyBountyDate: null, claimedLevelRewards: [], stats: { strength: 0, agility: 0, stamina: 0 }, defeatedEnemies: [], totalReps: 0, totalRepsByExercise: { push_up: 0, squat: 0, sit_up: 0, pull_up: 0 }, todayReps: { date: '', push_up: 0, squat: 0, sit_up: 0, pull_up: 0 }, totalBattles: 0, victories: 0, purchasedSkins: [], equippedSkin: null, equippedSkills: [], purchasedSkills: [] } }),
+  resetAvatar: () => set({ avatar: { name: 'Aethor', class: 'Iron Aspirant', level: 1, xp: 0, coins: 0, currentStreak: 0, lastActiveDate: null, lastEnduranceDate: null, lastDailyBountyDate: null, claimedLevelRewards: [], stats: { strength: 0, agility: 0, stamina: 0 }, defeatedEnemies: [], totalReps: 0, totalRepsByExercise: { push_up: 0, squat: 0, sit_up: 0, pull_up: 0 }, todayReps: { date: '', push_up: 0, squat: 0, sit_up: 0, pull_up: 0 }, totalBattles: 0, victories: 0, purchasedSkins: [], equippedSkin: null, equippedSkills: [], purchasedSkills: [], dailyPurchases: { date: '', counts: {} }, weeklyPurchases: { weekStart: '', counts: {} } } }),
   setAvatar: (avatarData) => set((state) => ({ avatar: { ...state.avatar, ...avatarData } })),
   setProfileNeedsName: (need) => set({ profileNeedsName: need }),
   setShowTutorial: (show) => set({ showTutorial: show }),
@@ -799,6 +841,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (loadedClaimedLevels.length > 0) needsSkinsMigration = true; // trigger sync
     }
 
+    const storedDailyPurchasesStr = await AsyncStorage.getItem(`dailyPurchases_${user.id}`);
+    let loadedDailyPurchases = storedDailyPurchasesStr ? JSON.parse(storedDailyPurchasesStr) : { date: todayStr, counts: {} };
+    if (loadedDailyPurchases.date !== todayStr) {
+      loadedDailyPurchases = { date: todayStr, counts: {} };
+    }
+
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - d.getDay()); // Sunday start
+    const weekStartStr = d.toISOString().split('T')[0];
+
+    const storedWeeklyPurchasesStr = await AsyncStorage.getItem(`weeklyPurchases_${user.id}`);
+    let loadedWeeklyPurchases = storedWeeklyPurchasesStr ? JSON.parse(storedWeeklyPurchasesStr) : { weekStart: weekStartStr, counts: {} };
+    if (loadedWeeklyPurchases.weekStart !== weekStartStr) {
+      loadedWeeklyPurchases = { weekStart: weekStartStr, counts: {} };
+    }
+
     const storedTodayRepsStr = await AsyncStorage.getItem(`todayReps_${user.id}`);
     let loadedTodayReps = storedTodayRepsStr ? JSON.parse(storedTodayRepsStr) : { date: '', push_up: 0, squat: 0, sit_up: 0, pull_up: 0 };
     if (loadedTodayReps.date !== todayStr) {
@@ -853,6 +912,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         equippedSkin: loadedEquippedSkin,
         purchasedSkills: loadedSkills,
         equippedSkills: loadedEquippedSkills,
+        dailyPurchases: loadedDailyPurchases,
+        weeklyPurchases: loadedWeeklyPurchases,
         birthday: data.birthday,
         sex: data.sex,
         height_cm: data.height_cm,
@@ -889,6 +950,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         AsyncStorage.setItem(`purchasedSkins_${user.id}`, JSON.stringify(state.purchasedSkins)),
         AsyncStorage.setItem(`purchasedSkills_${user.id}`, JSON.stringify(state.purchasedSkills)),
         AsyncStorage.setItem(`equippedSkills_${user.id}`, JSON.stringify(state.equippedSkills)),
+        AsyncStorage.setItem(`dailyPurchases_${user.id}`, JSON.stringify(state.dailyPurchases)),
+        AsyncStorage.setItem(`weeklyPurchases_${user.id}`, JSON.stringify(state.weeklyPurchases)),
         AsyncStorage.setItem(`todayReps_${user.id}`, JSON.stringify(state.todayReps || { date: '', push_up: 0, squat: 0, sit_up: 0, pull_up: 0 })),
         state.equippedSkin 
           ? AsyncStorage.setItem(`equippedSkin_${user.id}`, state.equippedSkin)

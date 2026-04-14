@@ -103,11 +103,13 @@ export async function purchaseItem(
   userId: string,
   item: CatalogItem,
   currentCoins: number,
+  quantity: number = 1
 ): Promise<{ success: boolean; newCoins: number; error?: string }> {
-  if (currentCoins < item.price) {
+  const totalPrice = item.price * quantity;
+  if (currentCoins < totalPrice) {
     return { success: false, newCoins: currentCoins, error: 'Not enough coins!' };
   }
-  const newCoins = currentCoins - item.price;
+  const newCoins = currentCoins - totalPrice;
 
   // 1. Deduct coins from profile
   const { error: profileErr } = await supabase
@@ -131,7 +133,7 @@ export async function purchaseItem(
     .eq('item_id', item.id)
     .single();
 
-  const newQty = invRow ? invRow.quantity + 1 : 1;
+  const newQty = (invRow ? invRow.quantity : 0) + quantity;
 
   // 3. Upsert into user_inventory
   const { error: invErr } = await supabase

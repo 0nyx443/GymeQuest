@@ -11,36 +11,177 @@ export default function StoreScreen() {
   const catalog = useGameStore((s) => s.catalog.filter(i => i.item_type !== 'skill'));
   const purchaseItem = useGameStore((s) => s.purchaseItem);
   const purchasedSkins = useGameStore((s) => s.avatar.purchasedSkins) || [];
+  const dailyPurchases = useGameStore((s) => s.avatar.dailyPurchases);
+  const weeklyPurchases = useGameStore((s) => s.avatar.weeklyPurchases);
   
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const [rewardAnimVisible, setRewardAnimVisible] = useState(false);
   const [purchasedItemName, setPurchasedItemName] = useState('');
   
   const [previewItem, setPreviewItem] = useState<CatalogItem | null>(null);
+  const [consumablePreview, setConsumablePreview] = useState<CatalogItem | null>(null);
+  const [purchaseQuantity, setPurchaseQuantity] = useState(1);
 
   const rewardScaleAnim = useRef(new Animated.Value(0)).current;
 
-  const handlePurchaseItem = useCallback(async (item: CatalogItem) => {
-    if (coins < item.price) {
+  const getConsumableLimitInfo = useCallback((item: CatalogItem) => {
+    const itemName = item.name.toLowerCase();
+    
+    // Check limits
+    const todayStr = new Date().toISOString().split('T')[0];
+    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - d.getDay());
+    const weekStartStr = d.toISOString().split('T')[0];
+    
+    const dailyKey = dailyPurchases.date === todayStr ? dailyPurchases : { date: todayStr, counts: {} };
+    const weeklyKey = weeklyPurchases.weekStart === weekStartStr ? weeklyPurchases : { weekStart: weekStartStr, counts: {} };
+
+    const dailyCount = dailyKey.counts[item.id] || 0;
+    const weeklyCount = weeklyKey.counts[item.id] || 0;
+
+    if (itemName.includes('small potion')) return { type: 'daily', current: dailyCount, max: 5 };
+    if (itemName.includes('double exp')) return { type: 'daily', current: dailyCount, max: 2 };
+    if (itemName.includes('large potion')) return { type: 'daily', current: dailyCount, max: 3 };
+    if (itemName.includes('streak saver')) return { type: 'weekly', current: weeklyCount, max: 1 };
+    
+    return { type: 'none', current: 0, max: 99 };
+  }, [dailyPurchases, weeklyPurchases]);
+
+  const handlePurchaseItem = useCallback(async (item: CatalogItem, qty: number = 1) => {
+    if (coins < item.price * qty) {
       Alert.alert("Checkout Failed", "Not enough coins!");
       return;
     }
     setPurchasingId(item.id);
-    const result = await purchaseItem(item);
+    const result = await purchaseItem(item, qty);
     setPurchasingId(null);
 
     if (result.success) {
-      setPurchasedItemName(item.name);
+      setPurchasedItemName(qty > 1 ? `${item.name} (${qty})` : item.name);
       setRewardAnimVisible(true);
       Animated.sequence([
-        Animated.spring(rewardScaleAnim, { toValue: 1.2, friction: 3, useNativeDriver: true }),
-        Animated.timing(rewardScaleAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
+        Animated.timing(rewardScaleAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.delay(1200),
         Animated.timing(rewardScaleAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
       ]).start(() => setRewardAnimVisible(false));
     } else {
       Alert.alert("Purchase failed", result.error);
     }
   }, [coins, purchaseItem, rewardScaleAnim]);
+
+  const renderConsumableGridItem = useCallback((item: CatalogItem) => {
+    const limitInfo = getConsumableLimitInfo(item);
+    const limitReached = limitInfo.type !== 'none' && limitInfo.current >= limitInfo.max;
+
+    return (
+      <TouchableOpacity 
+        key={item.id}
+        style={[styles.gridItem, limitReached && styles.gridItemDisabled]}
+        onPress={() => {
+          if (!limitReached) {
+            setConsumablePreview(item);
+            setPurchaseQuantity(1);
+          }
+        }}
+        activeOpacity={0.7}
+      >
+        <View style={styles.gridIconBox}>
+          {getItemImage(item.name) ? (
+            <Image source={getItemImage(item.name) as any} style={{ width: 40, height: 40 }} resizeMode="contain" />
+          ) : (
+            <Ionicons name={item.icon_name as any || "cube"} size={40} color={AuthColors.navy} />
+          )}
+        </View>
+        <View style={styles.gridPrice}>
+          <MaterialCommunityIcons name="circle-multiple-outline" size={12} color="#FBBF24" />
+          <Text style={styles.priceText}>{item.price.toLocaleString()}</Text>
+        </View>
+        {limitInfo.type !== 'none' && (
+          <Text style={styles.limitText}>{limitInfo.current}/{limitInfo.max}</Text>
+        )}
+      </TouchableOpacity>
+    );
+  }, [getConsumableLimitInfo]);
+
+  const renderConsumableModal = () => {
+    if (!consumablePreview) return null;
+    const limitInfo = getConsumableLimitInfo(consumablePreview);
+    const maxAllowed = limitInfo.type !== 'none' ? limitInfo.max - limitInfo.current : 99;
+    const canAffordQty = Math.floor(coins / consumablePreview.price);
+    const maxQty = Math.min(maxAllowed, canAffordQty > 0 ? canAffordQty : 1); // allow 1 so we can show "Not enough coins" if needed
+
+    const increaseQty = () => setPurchaseQuantity(q => (q < maxQty && q < maxAllowed ? q + 1 : q));
+    const decreaseQty = () => setPurchaseQuantity(q => (q > 1 ? q - 1 : 1));
+
+    const totalCost = consumablePreview.price * purchaseQuantity;
+    const isLimitReached = limitInfo.type !== 'none' && limitInfo.current >= limitInfo.max;
+    const cantAfford = coins < totalCost;
+    
+    return (
+      <Modal visible={!!consumablePreview} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{consumablePreview.name}</Text>
+              <TouchableOpacity onPress={() => setConsumablePreview(null)}>
+                <Ionicons name="close-circle" size={32} color={AuthColors.navy} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <View style={[styles.gridIconBox, { width: 80, height: 80, marginBottom: 16 }]}>
+                {getItemImage(consumablePreview.name) ? (
+                  <Image source={getItemImage(consumablePreview.name) as any} style={{ width: 60, height: 60 }} resizeMode="contain" />
+                ) : (
+                  <Ionicons name={consumablePreview.icon_name as any || "cube"} size={60} color={AuthColors.navy} />
+                )}
+              </View>
+              
+              <Text style={[styles.itemDesc, { textAlign: 'center' }]}>{consumablePreview.description}</Text>
+              
+              {limitInfo.type !== 'none' && (
+                <Text style={[styles.itemDesc, { color: isLimitReached ? '#EF4444' : '#F59E0B', fontFamily: Fonts.pixel, fontSize: 10, marginTop: -8 }]}>
+                  {limitInfo.type === 'daily' ? 'DAILY' : 'WEEKLY'} LIMIT: {limitInfo.current}/{limitInfo.max}
+                </Text>
+              )}
+
+              <View style={styles.qtyContainer}>
+                <TouchableOpacity style={styles.qtyBtn} onPress={decreaseQty} disabled={purchaseQuantity <= 1 || isLimitReached}>
+                  <Ionicons name="remove" size={24} color={AuthColors.navy} />
+                </TouchableOpacity>
+                <Text style={styles.qtyText}>{purchaseQuantity}</Text>
+                <TouchableOpacity style={styles.qtyBtn} onPress={increaseQty} disabled={purchaseQuantity >= maxAllowed || isLimitReached}>
+                  <Ionicons name="add" size={24} color={AuthColors.navy} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity 
+                style={[
+                  styles.buyButton, 
+                  { height: 48, justifyContent: 'center' }, 
+                  (isLimitReached || cantAfford || purchasingId === consumablePreview.id) && styles.buyButtonDisabled
+                ]}
+                onPress={async () => {
+                  await handlePurchaseItem(consumablePreview, purchaseQuantity);
+                  setConsumablePreview(null);
+                }}
+                disabled={isLimitReached || cantAfford || purchasingId === consumablePreview.id}
+              >
+                {purchasingId === consumablePreview.id ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={[styles.buyText, { fontSize: 16 }]}>
+                    {isLimitReached ? 'LIMIT REACHED' : `BUY - ${totalCost.toLocaleString()}`}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
 
   const renderItemCard = useCallback(({ item }: { item: CatalogItem }) => {
     const isSkin = item.item_type === 'skin';
@@ -163,6 +304,7 @@ export default function StoreScreen() {
   return (
     <View style={styles.screen}>
       {renderPreviewModal()}
+      {renderConsumableModal()}
       
       <View style={styles.header}>
         <View>
@@ -177,18 +319,15 @@ export default function StoreScreen() {
       <ScrollView contentContainerStyle={styles.listContent}>
         {/* Consumables */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🎒 CONSUMABLES</Text>
-          <FlatList
-            data={consumableItems}
-            keyExtractor={(i) => i.id}
-            renderItem={renderItemCard}
-            scrollEnabled={false}
-          />
+          <Text style={styles.sectionTitle}>CONSUMABLES</Text>
+          <View style={styles.gridContainer}>
+            {consumableItems.map(item => renderConsumableGridItem(item))}
+          </View>
         </View>
 
         {/* Cosmetics */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>👔 COSMETICS</Text>
+          <Text style={styles.sectionTitle}>COSMETICS</Text>
           <FlatList
             data={skinItems}
             keyExtractor={(i) => i.id}
@@ -319,6 +458,76 @@ const styles = StyleSheet.create({
   },
   buyButtonDisabled: { backgroundColor: '#94A3B8' },
   buyText: { fontFamily: Fonts.pixel, fontSize: 10, color: '#FFFFFF', letterSpacing: 1 },
+
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  gridItem: {
+    width: '48%',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 3,
+    borderColor: AuthColors.navy,
+    padding: 12,
+    alignItems: 'center',
+    shadowColor: AuthColors.navy,
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 3,
+  },
+  gridItemDisabled: {
+    opacity: 0.5,
+    backgroundColor: '#F1F5F9',
+  },
+  gridIconBox: {
+    width: 56,
+    height: 56,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  gridPrice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#D97706',
+    gap: 4,
+    marginTop: 8,
+  },
+  limitText: {
+    fontFamily: Fonts.pixel,
+    fontSize: 10,
+    color: '#EF4444',
+    marginTop: 8,
+  },
+  qtyContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    borderWidth: 2,
+    borderColor: AuthColors.navy,
+    backgroundColor: '#F8FAFC',
+  },
+  qtyBtn: {
+    padding: 8,
+    backgroundColor: '#E2E8F0',
+  },
+  qtyText: {
+    fontFamily: Fonts.pixel,
+    fontSize: 16,
+    marginHorizontal: 16,
+    color: AuthColors.navy,
+  },
 
   rewardOverlay: {
     ...StyleSheet.absoluteFillObject,

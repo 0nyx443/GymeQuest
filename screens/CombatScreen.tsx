@@ -7,7 +7,6 @@ import * as Haptics from 'expo-haptics';
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { useGameStore } from '@/store/gameStore';
-// 1. ADDED AUDIO STORE IMPORT
 import { useAudioStore, intensityToHaptic, playCombatBgm, stopCombatBgm, setBgmSpeed, playThwackSound } from '@/store/audioStore';
 import { usePoseEngine, MEDIAPIPE_WEBVIEW_HTML } from '@/hooks/usePoseEngine';
 import { AuthColors, Fonts } from '@/constants/theme';
@@ -40,8 +39,8 @@ export default function CombatScreen() {
   const [localSeconds, setLocalSeconds]   = useState(battle?.enemy.timeLimit || 60);
   const [webViewReady, setWebViewReady]   = useState(false);
   const [showItemModal, setShowItemModal] = useState(!battle?.enemy.isEndurance && inventory.length > 0);
-  const [lastDamageDealt, setLastDamageDealt] = useState(0);  // NEW: Track last damage for display
-  const [skillTriggers, setSkillTriggers] = useState<SkillTriggerEvent[]>([]);  // NEW: Skill trigger notifications
+  const [lastDamageDealt, setLastDamageDealt] = useState(0);  //  Track last damage for display
+  const [skillTriggers, setSkillTriggers] = useState<SkillTriggerEvent[]>([]);  //  Skill trigger notifications
 
   // ── Positioning phase state ────────────────────────────────────────────────
   // 'waiting'  = overlay shown, waiting for user to get into position

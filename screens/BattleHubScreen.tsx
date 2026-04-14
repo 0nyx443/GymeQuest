@@ -9,12 +9,12 @@
 import React, { useCallback, useRef, useState, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, StatusBar, Animated, Alert, Modal, Image
+  ScrollView, StatusBar, Animated, Alert, Image
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useGameStore, selectXpProgress } from '@/store/gameStore';
-import { ENEMIES, BOSSES, XP_TABLE, MAX_LEVEL, EXERCISES } from '@/constants/game';
+import { ENEMIES, BOSSES, XP_TABLE, MAX_LEVEL } from '@/constants/game';
 import { AuthColors, Fonts } from '@/constants/theme';
 import { AvatarStage } from '@/components/hub/AvatarStage';
 import { ExpBar } from '@/components/hub/ExpBar';
@@ -69,7 +69,7 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
   const [timeLeft, setTimeLeft] = useState('');
   const [weeklyTimeLeft, setWeeklyTimeLeft] = useState('');
   const [rewardAnimVisible, setRewardAnimVisible] = useState(false);
-  const [exerciseModalVisible, setExerciseModalVisible] = useState(false);
+  
   const [statsHelpVisible, setStatsHelpVisible] = useState(false);
   const rewardScaleAnim = useRef(new Animated.Value(0)).current;
 
@@ -128,7 +128,7 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
           
           const todayStr = new Date().toISOString().split('T')[0];
           
-          // Select an enemy from the roster rotating daily
+    // Select an enemy from the roster rotating daily based on day of year
           const dayOfYear = Math.floor(new Date().getTime() / (1000 * 60 * 60 * 24));
           const availableEnemies = ENEMIES.filter((e) => avatar.level >= (e.unlockLevel || 0) / 2);
           const pool = availableEnemies.length > 0 ? availableEnemies : [ENEMIES[0]];
@@ -216,7 +216,7 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header ── */}
+        {/* ── Player Header Info ── */}
         <View style={styles.header}>
           <View style={styles.headerProfile}>
             <View style={styles.headerPortraitBox}>
@@ -333,7 +333,7 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
 
         {/* ── CTA Buttons ── */}
         <View style={styles.ctaRow}>
-          {/* BATTLE — primary action */}
+          {/* BATTLE — Primary Action (Quick Training) */}
           <Animated.View style={[styles.ctaBattleWrap, { transform: [{ scale: battleScaleAnim }] }]}>
             <TouchableOpacity
                 style={styles.ctaBattle}
@@ -346,7 +346,7 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
               </TouchableOpacity>
           </Animated.View>
 
-          {/* QUESTS — secondary */}
+          {/* QUESTS — Secondary Action (Enemy Selection) */}
           <Animated.View style={[styles.ctaQuestWrap, { transform: [{ scale: questScaleAnim }] }]}>
             <TouchableOpacity
               style={styles.ctaQuest}
@@ -402,7 +402,7 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
           </View>
         </TouchableOpacity>
 
-        {/* ── Daily Bounty ── uses the full DailyBountyCard component ── */}
+        {/* ── Daily Bounty (Utilizes DailyBountyCard Component) ── */}
         {dailyEnemy && (
           <DailyBountyCard
             enemy={{ ...dailyEnemy, image: dailyEnemy.image }}
@@ -415,7 +415,7 @@ export default function BattleHubScreen({ onQuestsPress }: BattleHubScreenProps)
 
       {/* ── Stats Info Overlay ── */}
       {statsHelpVisible && (
-        <View style={[StyleSheet.absoluteFill, styles.modalOverlay]} pointerEvents="auto">
+        <View style={[StyleSheet.absoluteFill, styles.statsOverlayContainer]} pointerEvents="auto">
           <View style={styles.statsHelpBox}>
             <Text style={styles.statsHelpTitle}>HOW STATS WORK</Text>
             
@@ -941,7 +941,7 @@ const styles = StyleSheet.create({
   },
     
   // Modals
-  modalOverlay: {
+  statsOverlayContainer: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",

@@ -19,12 +19,12 @@ export interface AvatarState {
   class: string;
   level: number;
   xp: number;
-  coins: number;           // NEW: Earned by defeating enemies
-  currentStreak: number;   // NEW: Current daily workout streak
-  lastActiveDate: string | null; // NEW: The ISO string date of last workout
-  lastEnduranceDate: string | null; // NEW: The ISO string date of last endurance boss battle
-  lastDailyBountyDate: string | null; // NEW: Daily Bounty cooldown tracker
-  claimedLevelRewards: number[]; // NEW: Levels for which rewards have been claimed
+  coins: number;           // Earned by defeating enemies
+  currentStreak: number;   // Current daily workout streak
+  lastActiveDate: string | null; // The ISO string date of last workout
+  lastEnduranceDate: string | null; // The ISO string date of last endurance boss battle
+  lastDailyBountyDate: string | null; // Daily Bounty cooldown tracker
+  claimedLevelRewards: number[]; // Levels for which rewards have been claimed
   stats: PlayerStats;
   defeatedEnemies: string[];
   purchasedSkins: string[];
@@ -47,8 +47,8 @@ export interface AvatarState {
 export interface ActiveBattle {
   enemy: Enemy;
   repsCompleted: number;
-  totalDamageDealt: number;  // NEW: Total damage dealt instead of reps
-  damagePerRep: number;       // NEW: Damage multiplier based on stats
+  totalDamageDealt: number;  // Total damage dealt instead of reps
+  damagePerRep: number;       // Damage multiplier based on stats
   enemyHpRemaining: number;
   secondsRemaining: number;
   phase: 'idle' | 'countdown' | 'active' | 'victory' | 'defeat';
@@ -56,7 +56,7 @@ export interface ActiveBattle {
   // item effects active in this battle
   effectiveReps: number;        // may be lower than enemy.repsRequired (Elixir)
   activeEffect: CatalogItem | null;  // for display & XP multiplier
-  triggeredSkills: string[];    // NEW: Skills triggered this battle
+  triggeredSkills: string[];    // Skills triggered this battle
 }
 
 interface GameStore {
@@ -614,7 +614,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     };
   }),
 
-  // ── NEW: Tells the global store the countdown is over ──
+  // ──: Tells the global store the countdown is over ──
   setBattleActive: () => set((state) => {
     if (!state.battle) return state;
     return { battle: { ...state.battle, phase: 'active' } };

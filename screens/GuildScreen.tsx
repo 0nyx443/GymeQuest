@@ -923,31 +923,9 @@ const styles = StyleSheet.create({
     elevation: 4,
     position: 'relative',
   },
-  emblemContainer: {
-    width: 96,
-    height: 96,
-    backgroundColor: '#CCEDFE',
-    borderWidth: 3,
-    borderColor: '#765A05',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  emblemIconMain: {
-    width: 40,
-    height: 50,
-    backgroundColor: '#BB152C',
-    zIndex: 0,
-  },
-  emblemBadge: {
-    position: 'absolute',
-    width: 25,
-    height: 25,
-    backgroundColor: '#123441',
-    bottom: -10,
-    right: -10,
-    zIndex: 1,
-  },
+  
+  
+  
   guildName: {
     fontFamily: Fonts.vt323,
     fontSize: 36,

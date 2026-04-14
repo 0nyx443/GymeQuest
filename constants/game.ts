@@ -70,7 +70,7 @@ export interface Enemy {
   name: string;
   title: string;
   hp: number;               // Legacy field, kept for reference
-  health: number;           // NEW: Actual health in damage units
+  health: number;           //  Actual health in damage units
   exercise: ExerciseType;
   repsRequired: number;
   timeLimit: number;        // seconds
@@ -81,7 +81,7 @@ export interface Enemy {
   lore: string;
   color: string;
   image?: any;              // Added to support dynamic images
-  isEndurance?: boolean;    // NEW: Endurance mode flag
+  isEndurance?: boolean;    //  Endurance mode flag
   phases?: { exercise: ExerciseType; reps: number }[]; // Ordered sequence of exercises for boss fights
 }
 

@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { View, StyleSheet, ScrollView, StatusBar } from 'react-native';
 import { useGameStore, selectXpProgress } from '@/store/gameStore';
 import { useRouter } from 'expo-router';
-// ADDED MAX_LEVEL here so your XP isn't capped at 10
+// MAX_LEVEL here so your XP isn't capped at 10
 import { XP_TABLE, ENEMIES, MAX_LEVEL } from '@/constants/game';
 import { AuthColors } from '@/constants/theme';
 import { supabase } from '@/utils/supabase';
